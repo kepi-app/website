@@ -11,6 +11,8 @@ import remarkGfm from "remark-gfm"
 import remarkMath from "remark-math"
 import rehypeKatex from "rehype-katex"
 import "katex/dist/katex.min.css"
+import rehypeHighlight from "rehype-highlight"
+import "highlightjs/styles/atom-one-dark.css"
 
 interface PostUpdate {
 	title?: string
@@ -149,7 +151,10 @@ export default function EditBlogPostPage() {
 					<div className="my-16 prose dark:prose-invert">
 						<Markdown
 							remarkPlugins={[remarkMath, remarkGfm]}
-							rehypePlugins={[rehypeKatex]}
+							rehypePlugins={[rehypeKatex, rehypeHighlight]}
+							components={{
+								pre: (props) => <pre {...props} className="hljs" />,
+							}}
 						>
 							{postContent}
 						</Markdown>
