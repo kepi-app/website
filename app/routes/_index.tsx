@@ -1,12 +1,12 @@
-import type { MetaFunction } from "@remix-run/node";
-import { Logo } from "app/components/logo";
+import type { MetaFunction } from "@remix-run/node"
+import { Logo } from "app/components/logo"
 
 export const meta: MetaFunction = () => {
 	return [
 		{ title: "New Remix App" },
 		{ name: "description", content: "Welcome to Remix!" },
-	];
-};
+	]
+}
 
 export default function Index() {
 	return (
@@ -43,7 +43,7 @@ export default function Index() {
 				</div>
 			</main>
 		</div>
-	);
+	)
 }
 
 const resources = [
@@ -128,4 +128,4 @@ const resources = [
 			</svg>
 		),
 	},
-];
+]

@@ -1,35 +1,35 @@
-import { Form } from "@remix-run/react";
-import clsx from "clsx";
-import { useEffect, useRef, useState } from "react";
-import { AutoResizingTextArea } from "~/components/auto-resizing-textarea";
-import { Button } from "~/components/button";
+import { Form } from "@remix-run/react"
+import clsx from "clsx"
+import { useEffect, useRef, useState } from "react"
+import { AutoResizingTextArea } from "~/components/auto-resizing-textarea"
+import { Button } from "~/components/button"
 
 export default function NewBlogPage() {
-	const [isFocused, setIsFocused] = useState(false);
-	const unfocusTimer = useRef<ReturnType<typeof setTimeout>>();
-	const canUnfocus = useRef(false);
+	const [isFocused, setIsFocused] = useState(false)
+	const unfocusTimer = useRef<ReturnType<typeof setTimeout>>()
+	const canUnfocus = useRef(false)
 
 	useEffect(function unfocusOnMouseMove() {
 		function unfocus() {
 			if (canUnfocus.current) {
-				setIsFocused(false);
+				setIsFocused(false)
 			}
 		}
-		document.addEventListener("mousemove", unfocus);
+		document.addEventListener("mousemove", unfocus)
 		return () => {
-			document.removeEventListener("mousemove", unfocus);
-		};
-	}, []);
+			document.removeEventListener("mousemove", unfocus)
+		}
+	}, [])
 
 	function onBlogContentInput() {
 		if (unfocusTimer.current) {
-			clearTimeout(unfocusTimer.current);
+			clearTimeout(unfocusTimer.current)
 		}
-		setIsFocused(true);
-		canUnfocus.current = false;
+		setIsFocused(true)
+		canUnfocus.current = false
 		unfocusTimer.current = setTimeout(() => {
-			canUnfocus.current = true;
-		}, 500);
+			canUnfocus.current = true
+		}, 500)
 	}
 
 	return (
@@ -70,5 +70,5 @@ export default function NewBlogPage() {
 				</Form>
 			</main>
 		</div>
-	);
+	)
 }

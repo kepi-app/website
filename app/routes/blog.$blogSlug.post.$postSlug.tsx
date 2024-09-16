@@ -1,113 +1,113 @@
-import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { json, useFetcher, useLoaderData } from "@remix-run/react";
-import clsx from "clsx";
-import dayjs from "dayjs";
-import { useState, useRef, useEffect } from "react";
-import { BlogPost } from "~/blog/post";
-import { AutoResizingTextArea } from "~/components/auto-resizing-textarea";
-import { Button } from "~/components/button";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node"
+import { json, useFetcher, useLoaderData } from "@remix-run/react"
+import clsx from "clsx"
+import dayjs from "dayjs"
+import { useEffect, useRef, useState } from "react"
+import type { BlogPost } from "~/blog/post"
+import { AutoResizingTextArea } from "~/components/auto-resizing-textarea"
+import { Button } from "~/components/button"
 
 interface PostUpdate {
-	title?: string;
-	description?: string;
-	content?: string;
+	title?: string
+	description?: string
+	content?: string
 }
 
 export async function loader({ params }: LoaderFunctionArgs) {
 	const res = await fetch(
 		`${process.env.API_URL}/blog/${params.blogSlug}/post/${params.postSlug}`,
-	);
-	return json<BlogPost>(await res.json());
+	)
+	return json<BlogPost>(await res.json())
 }
 
 export default function EditBlogPostPage() {
-	const postData = useLoaderData<typeof loader>();
-	const fetcher = useFetcher();
+	const postData = useLoaderData<typeof loader>()
+	const fetcher = useFetcher()
 
-	const [postTitle, setPostTitle] = useState(postData.title);
-	const [postDescription, setPostDescription] = useState(postData.description);
-	const [postContent, setPostContent] = useState(postData.content);
-	const postUpdate = useRef<PostUpdate>({});
-	const [statusMessage, setStatusMessage] = useState("");
+	const [postTitle, setPostTitle] = useState(postData.title)
+	const [postDescription, setPostDescription] = useState(postData.description)
+	const [postContent, setPostContent] = useState(postData.content)
+	const postUpdate = useRef<PostUpdate>({})
+	const [statusMessage, setStatusMessage] = useState("")
 
-	const [isFocused, setIsFocused] = useState(false);
-	const canUnfocus = useRef(false);
-	const formRef = useRef<HTMLFormElement | null>(null);
-	const unfocusTimeout = useRef<ReturnType<typeof setTimeout>>();
-	const autoSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const [isFocused, setIsFocused] = useState(false)
+	const canUnfocus = useRef(false)
+	const formRef = useRef<HTMLFormElement | null>(null)
+	const unfocusTimeout = useRef<ReturnType<typeof setTimeout>>()
+	const autoSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
 	useEffect(function unfocusOnMouseMove() {
 		function unfocus() {
 			if (canUnfocus.current) {
-				setIsFocused(false);
+				setIsFocused(false)
 			}
 		}
-		document.addEventListener("mousemove", unfocus);
+		document.addEventListener("mousemove", unfocus)
 		return () => {
-			document.removeEventListener("mousemove", unfocus);
-		};
-	}, []);
+			document.removeEventListener("mousemove", unfocus)
+		}
+	}, [])
 
 	useEffect(
 		function updateStatusMessage() {
 			switch (fetcher.state) {
 				case "idle":
 					if (statusMessage) {
-						setStatusMessage(`Last saved ${dayjs().fromNow()}`);
+						setStatusMessage(`Last saved ${dayjs().fromNow()}`)
 					}
 
 				case "loading":
-					break;
+					break
 
 				case "submitting":
-					setStatusMessage("Saving…");
-					break;
+					setStatusMessage("Saving…")
+					break
 			}
 		},
 		[fetcher.state],
-	);
+	)
 
 	useEffect(() => {
-		postUpdate.current.title = postTitle;
-		autoSaveAfterTimeout();
-	}, [postTitle]);
+		postUpdate.current.title = postTitle
+		autoSaveAfterTimeout()
+	}, [postTitle])
 
 	useEffect(() => {
-		postUpdate.current.description = postDescription;
-		autoSaveAfterTimeout();
-	}, [postDescription]);
+		postUpdate.current.description = postDescription
+		autoSaveAfterTimeout()
+	}, [postDescription])
 
 	useEffect(() => {
-		postUpdate.current.content = postContent;
-		autoSaveAfterTimeout();
-	}, [postContent]);
+		postUpdate.current.content = postContent
+		autoSaveAfterTimeout()
+	}, [postContent])
 
 	function autoSaveAfterTimeout() {
 		if (autoSaveTimeout.current) {
-			clearTimeout(autoSaveTimeout.current);
+			clearTimeout(autoSaveTimeout.current)
 		}
-		autoSaveTimeout.current = setTimeout(savePost, 2000);
+		autoSaveTimeout.current = setTimeout(savePost, 2000)
 	}
 
 	function savePost() {
 		fetcher.submit(postUpdate.current as Record<string, string>, {
 			method: "PATCH",
 			encType: "application/json",
-		});
-		postUpdate.current = {};
-		autoSaveTimeout.current = null;
+		})
+		postUpdate.current = {}
+		autoSaveTimeout.current = null
 	}
 
 	function onBlogContentInput() {
 		if (unfocusTimeout.current) {
-			clearTimeout(unfocusTimeout.current);
+			clearTimeout(unfocusTimeout.current)
 		}
 
-		setIsFocused(true);
-		canUnfocus.current = false;
+		setIsFocused(true)
+		canUnfocus.current = false
 		unfocusTimeout.current = setTimeout(() => {
-			canUnfocus.current = true;
-		}, 500);
+			canUnfocus.current = true
+		}, 500)
 	}
 
 	return (
@@ -120,7 +120,7 @@ export default function EditBlogPostPage() {
 						placeholder="Blog title"
 						value={postTitle}
 						onChange={(event) => {
-							setPostTitle(event.currentTarget.value);
+							setPostTitle(event.currentTarget.value)
 						}}
 					/>
 					<AutoResizingTextArea
@@ -129,7 +129,7 @@ export default function EditBlogPostPage() {
 						placeholder="Blog description"
 						value={postDescription}
 						onChange={(event) => {
-							setPostDescription(event.currentTarget.value);
+							setPostDescription(event.currentTarget.value)
 						}}
 					/>
 				</div>
@@ -141,7 +141,7 @@ export default function EditBlogPostPage() {
 					onInput={onBlogContentInput}
 					value={postContent}
 					onChange={(event) => {
-						setPostContent(event.currentTarget.value);
+						setPostContent(event.currentTarget.value)
 					}}
 				/>
 
@@ -159,17 +159,17 @@ export default function EditBlogPostPage() {
 				</div>
 			</main>
 		</div>
-	);
+	)
 }
 
 export async function action({ params, request }: ActionFunctionArgs) {
-	const updateJson = await request.json();
+	const updateJson = await request.json()
 	await fetch(
 		`${process.env.API_URL}/blog/${params.blogSlug}/post/${params.postSlug}`,
 		{
 			method: "PATCH",
 			body: JSON.stringify(updateJson),
 		},
-	);
-	return json({});
+	)
+	return json({})
 }

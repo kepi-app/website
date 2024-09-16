@@ -1,10 +1,10 @@
-import { useParams } from "@remix-run/react";
-import { Anchor } from "~/components/anchor";
+import { useParams } from "@remix-run/react"
+import { Anchor } from "~/components/anchor"
 
-type RouteParams = "blogSlug";
+type RouteParams = "blogSlug"
 
 export default function BlogDashboard() {
-	const params = useParams<RouteParams>();
+	const params = useParams<RouteParams>()
 
 	return (
 		<main className="w-full lg:max-w-prose mt-20">
@@ -25,5 +25,5 @@ export default function BlogDashboard() {
 				</li>
 			</ul>
 		</main>
-	);
+	)
 }

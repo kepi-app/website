@@ -1,13 +1,13 @@
-import { Form, useNavigation } from "@remix-run/react";
-import clsx from "clsx";
-import { useId } from "react";
-import { Button } from "~/components/button";
-import { Logo } from "~/components/logo";
+import { Form, useNavigation } from "@remix-run/react"
+import clsx from "clsx"
+import { useId } from "react"
+import { Button } from "~/components/button"
+import { Logo } from "~/components/logo"
 
 export default function LoginPage() {
-	const emailInputId = useId();
-	const passwordInputId = useId();
-	const navigation = useNavigation();
+	const emailInputId = useId()
+	const passwordInputId = useId()
+	const navigation = useNavigation()
 
 	return (
 		<div className="w-full h-screen flex justify-center items-center">
@@ -44,5 +44,5 @@ export default function LoginPage() {
 				</Form>
 			</main>
 		</div>
-	);
+	)
 }

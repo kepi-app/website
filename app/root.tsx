@@ -4,14 +4,13 @@ import {
 	Outlet,
 	Scripts,
 	ScrollRestoration,
-} from "@remix-run/react";
-import type { LinksFunction } from "@remix-run/node";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
+} from "@remix-run/react"
+import dayjs from "dayjs"
+import relativeTime from "dayjs/plugin/relativeTime"
 
-import "./tailwind.css";
+import "./tailwind.css"
 
-dayjs.extend(relativeTime);
+dayjs.extend(relativeTime)
 
 export function Layout({ children }: { children: React.ReactNode }) {
 	return (
@@ -40,9 +39,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
 				<Scripts />
 			</body>
 		</html>
-	);
+	)
 }
 
 export default function App() {
-	return <Outlet />;
+	return <Outlet />
 }
