@@ -169,7 +169,7 @@ export default function EditBlogPostPage() {
 
 				<div
 					className={clsx(
-						"sticky bottom-0 left-0 right-0 bg-zinc-200 dark:bg-zinc-900 border-t border-t-zinc-300 dark:border-t-zinc-800 w-full flex items-center justify-center",
+						"fixed z-10 bottom-0 left-0 right-0 backdrop-blur-sm bg-zinc-200 dark:bg-zinc-900 dark:bg-opacity-80 border-t border-t-zinc-300 dark:border-t-zinc-800 w-full flex items-center justify-center",
 						{ "opacity-0": isFocused },
 					)}
 				>
