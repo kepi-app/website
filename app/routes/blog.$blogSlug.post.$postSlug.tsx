@@ -3,6 +3,7 @@ import { json, useFetcher, useLoaderData } from "@remix-run/react"
 import clsx from "clsx"
 import dayjs from "dayjs"
 import { useEffect, useRef, useState } from "react"
+import Markdown from "react-markdown"
 import type { BlogPost } from "~/blog/post"
 import { AutoResizingTextArea } from "~/components/auto-resizing-textarea"
 import { Button } from "~/components/button"
@@ -29,6 +30,7 @@ export default function EditBlogPostPage() {
 	const [postContent, setPostContent] = useState(postData.content)
 	const postUpdate = useRef<PostUpdate>({})
 	const [statusMessage, setStatusMessage] = useState("")
+	const [isPreviewing, setIsPreviewing] = useState(false)
 
 	const [isFocused, setIsFocused] = useState(false)
 	const canUnfocus = useRef(false)
@@ -55,6 +57,7 @@ export default function EditBlogPostPage() {
 					if (statusMessage) {
 						setStatusMessage(`Last saved ${dayjs().fromNow()}`)
 					}
+					break
 
 				case "loading":
 					break
@@ -64,7 +67,7 @@ export default function EditBlogPostPage() {
 					break
 			}
 		},
-		[fetcher.state],
+		[statusMessage, fetcher.state],
 	)
 
 	useEffect(() => {
@@ -110,6 +113,10 @@ export default function EditBlogPostPage() {
 		}, 500)
 	}
 
+	function togglePreview() {
+		setIsPreviewing((previewing) => !previewing)
+	}
+
 	return (
 		<div className="w-full flex justify-center">
 			<main className="w-full mt-40 lg:max-w-prose">
@@ -134,26 +141,34 @@ export default function EditBlogPostPage() {
 					/>
 				</div>
 
-				<AutoResizingTextArea
-					className="font-mono bg-transparent w-full mt-16 focus:outline-none"
-					placeholder="Content goes here..."
-					name="postContent"
-					onInput={onBlogContentInput}
-					value={postContent}
-					onChange={(event) => {
-						setPostContent(event.currentTarget.value)
-					}}
-				/>
+				{isPreviewing ? (
+					<div className="my-16 prose dark:prose-invert">
+						<Markdown>{postContent}</Markdown>
+					</div>
+				) : (
+					<AutoResizingTextArea
+						className="font-mono bg-transparent w-full my-16 focus:outline-none"
+						placeholder="Content goes here..."
+						name="postContent"
+						onInput={onBlogContentInput}
+						value={postContent}
+						onChange={(event) => {
+							setPostContent(event.currentTarget.value)
+						}}
+					/>
+				)}
 
 				<div
 					className={clsx(
-						"absolute bottom-0 left-0 right-0 border-t border-t-zinc-300 dark:border-t-zinc-800 w-full flex items-center justify-center",
+						"sticky bottom-0 left-0 right-0 bg-zinc-200 dark:bg-zinc-900 border-t border-t-zinc-300 dark:border-t-zinc-800 w-full flex items-center justify-center",
 						{ "opacity-0": isFocused },
 					)}
 				>
 					<div className="w-full lg:max-w-prose flex justify-end items-center py-2 space-x-4">
 						{statusMessage ? <p className="flex-1">{statusMessage}</p> : null}
-						<Button className="px-3 py-1">Save as draft</Button>
+						<Button className="px-3 py-1" onClick={togglePreview}>
+							{isPreviewing ? "Edit" : "Preview"}
+						</Button>
 						<Button className="px-3 py-1">Publish</Button>
 					</div>
 				</div>
