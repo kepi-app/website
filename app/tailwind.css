@@ -2,11 +2,45 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: "Georgia";
+  src: url("/font/georgia-webfont.woff2") format("woff2"),
+    url("/font/georgia-webfont.woff") format("woff");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Georgia";
+  src: url("/font/georgiab-webfont.woff2") format("woff2"),
+    url("/font/georgiab-webfont.woff") format("woff");
+  font-weight: bold;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Georgia";
+  src: url("/font/georgiai-webfont.woff2") format("woff2"),
+    url("/font/georgiai-webfont.woff") format("woff");
+  font-weight: normal;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Georgia";
+  src: url("/font/georgiaz-webfont.woff2") format("woff2"),
+    url("/font/georgiaz-webfont.woff") format("woff");
+  font-weight: bold;
+  font-style: italic;
+}
+
 html,
 body {
-  @apply bg-white dark:bg-gray-950;
+  @apply w-full bg-zinc-200 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-300;
 
   @media (prefers-color-scheme: dark) {
     color-scheme: dark;
   }
+
+  font-family: "Source Serif 4", Georgia, serif;
 }
