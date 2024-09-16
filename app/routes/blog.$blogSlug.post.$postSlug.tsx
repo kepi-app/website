@@ -7,6 +7,10 @@ import Markdown from "react-markdown"
 import type { BlogPost } from "~/blog/post"
 import { AutoResizingTextArea } from "~/components/auto-resizing-textarea"
 import { Button } from "~/components/button"
+import remarkGfm from "remark-gfm"
+import remarkMath from "remark-math"
+import rehypeKatex from "rehype-katex"
+import "katex/dist/katex.min.css"
 
 interface PostUpdate {
 	title?: string
@@ -143,7 +147,12 @@ export default function EditBlogPostPage() {
 
 				{isPreviewing ? (
 					<div className="my-16 prose dark:prose-invert">
-						<Markdown>{postContent}</Markdown>
+						<Markdown
+							remarkPlugins={[remarkMath, remarkGfm]}
+							rehypePlugins={[rehypeKatex]}
+						>
+							{postContent}
+						</Markdown>
 					</div>
 				) : (
 					<AutoResizingTextArea
