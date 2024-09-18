@@ -2,7 +2,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node"
 import { json, useFetcher, useLoaderData } from "@remix-run/react"
 import clsx from "clsx"
 import dayjs from "dayjs"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type ChangeEvent } from "react"
 import Markdown from "react-markdown"
 import type { BlogPost } from "~/blog/post"
 import { AutoResizingTextArea } from "~/components/auto-resizing-textarea"
@@ -13,6 +13,7 @@ import rehypeKatex from "rehype-katex"
 import "katex/dist/katex.min.css"
 import rehypeHighlight from "rehype-highlight"
 import "highlightjs/styles/atom-one-dark.css"
+import { PhotoIcon } from "@heroicons/react/24/outline"
 
 interface PostUpdate {
 	title?: string
@@ -37,12 +38,11 @@ export default function EditBlogPostPage() {
 	const postUpdate = useRef<PostUpdate>({})
 	const [statusMessage, setStatusMessage] = useState("")
 	const [isPreviewing, setIsPreviewing] = useState(false)
-
 	const [isFocused, setIsFocused] = useState(false)
 	const canUnfocus = useRef(false)
-	const formRef = useRef<HTMLFormElement | null>(null)
 	const unfocusTimeout = useRef<ReturnType<typeof setTimeout>>()
 	const autoSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+	const imageFileInputRef = useRef<HTMLInputElement | null>(null)
 
 	useEffect(function unfocusOnMouseMove() {
 		function unfocus() {
@@ -123,6 +123,14 @@ export default function EditBlogPostPage() {
 		setIsPreviewing((previewing) => !previewing)
 	}
 
+	function openImagePicker() {
+		imageFileInputRef.current?.click()
+	}
+
+	function onImageChange(event: ChangeEvent<HTMLInputElement>) {
+		console.log(event.currentTarget.files)
+	}
+
 	return (
 		<div className="w-full flex justify-center">
 			<main className="w-full mt-40 lg:max-w-prose">
@@ -174,19 +182,99 @@ export default function EditBlogPostPage() {
 
 				<div
 					className={clsx(
-						"fixed z-10 bottom-0 left-0 right-0 backdrop-blur-sm bg-zinc-200 dark:bg-zinc-900 dark:bg-opacity-80 border-t border-t-zinc-300 dark:border-t-zinc-800 w-full flex items-center justify-center",
-						{ "opacity-0": isFocused },
+						"fixed z-10 bottom-0 left-0 right-0 w-full flex flex-col items-center",
+						{
+							"opacity-0": isFocused,
+						},
 					)}
 				>
-					<div className="w-full lg:max-w-prose flex justify-end items-center py-2 space-x-4">
-						{statusMessage ? <p className="flex-1">{statusMessage}</p> : null}
-						<Button className="px-3 py-1" onClick={togglePreview}>
-							{isPreviewing ? "Edit" : "Preview"}
-						</Button>
-						<Button className="px-3 py-1">Publish</Button>
+					<ProgressiveBlurBackground />
+
+					<div className="z-10 flex flex-col items-start w-full lg:max-w-prose">
+						<div className="w-full flex justify-center">
+							<div className="w-full lg:max-w-prose">
+								<div className="w-10 h-10 bg-neutral-200 shadow-xl rounded" />
+							</div>
+						</div>
+
+						<div className="w-full lg:max-w-prose flex justify-end items-center py-2 space-x-4">
+							{/*statusMessage ? <p className="flex-1">{statusMessage}</p> : null*/}
+							<div className="flex flex-row flex-1">
+								<input
+									ref={imageFileInputRef}
+									type="file"
+									multiple
+									className="hidden"
+									onChange={onImageChange}
+								/>
+								<button type="button" onClick={openImagePicker}>
+									<PhotoIcon className="w-6 h-6" />
+								</button>
+							</div>
+							<Button className="px-3 py-1" onClick={togglePreview}>
+								{isPreviewing ? "Edit" : "Preview"}
+							</Button>
+							<Button className="px-3 py-1">Publish</Button>
+						</div>
 					</div>
 				</div>
 			</main>
+		</div>
+	)
+}
+
+function ProgressiveBlurBackground() {
+	return (
+		<div className="absolute top-0 bottom-0 left-0 right-0 w-full">
+			<div
+				className="absolute top-0 bottom-0 left-0 right-0"
+				style={{
+					backdropFilter: "blur(1px)",
+					mask: "linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 1) 10%, rgba(0, 0, 0, 1) 30%, rgba(0, 0, 0, 0) 40%)",
+				}}
+			/>
+			<div
+				className="absolute top-0 bottom-0 left-0 right-0"
+				style={{
+					backdropFilter: "blur(2px)",
+					mask: "linear-gradient(rgba(0, 0, 0, 0) 10%, rgba(0, 0, 0, 1) 20%, rgba(0, 0, 0, 1) 40%, rgba(0, 0, 0, 0) 50%)",
+				}}
+			/>
+			<div
+				className="absolute top-0 bottom-0 left-0 right-0"
+				style={{
+					backdropFilter: "blur(4px)",
+					mask: "linear-gradient(rgba(0, 0, 0, 0) 15%, rgba(0, 0, 0, 1) 30%, rgba(0, 0, 0, 1) 50%, rgba(0, 0, 0, 0) 60%)",
+				}}
+			/>
+			<div
+				className="absolute top-0 bottom-0 left-0 right-0"
+				style={{
+					backdropFilter: "blur(8px)",
+					mask: "linear-gradient(rgba(0, 0, 0, 0) 20%, rgba(0, 0, 0, 1) 40%, rgba(0, 0, 0, 1) 60%, rgba(0, 0, 0, 0) 70%)",
+				}}
+			/>
+			<div
+				className="absolute top-0 bottom-0 left-0 right-0"
+				style={{
+					backdropFilter: "blur(16px)",
+					mask: "linear-gradient(rgba(0, 0, 0, 0) 40%, rgba(0, 0, 0, 1) 60%, rgba(0, 0, 0, 1) 80%, rgba(0, 0, 0, 0) 90%)",
+				}}
+			/>
+			<div
+				className="absolute top-0 bottom-0 left-0 right-0"
+				style={{
+					backdropFilter: "blur(32px)",
+					mask: "linear-gradient(rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 1) 80%)",
+				}}
+			/>
+			<div
+				className="absolute top-0 bottom-0 left-0 right-0"
+				style={{
+					backdropFilter: "blur(64px)",
+					mask: "linear-gradient(rgba(0, 0, 0, 0) 80%, rgba(0, 0, 0, 1) 100%)",
+				}}
+			/>
 		</div>
 	)
 }
