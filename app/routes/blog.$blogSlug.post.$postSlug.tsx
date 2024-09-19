@@ -192,9 +192,7 @@ export default function EditBlogPostPage() {
 
 					<div className="z-10 flex flex-col items-start w-full lg:max-w-prose">
 						<div className="w-full flex justify-center">
-							<div className="w-full lg:max-w-prose">
-								<div className="w-10 h-10 bg-neutral-200 shadow-xl rounded" />
-							</div>
+							<div className="w-full h-10 lg:max-w-prose"></div>
 						</div>
 
 						<div className="w-full lg:max-w-prose flex justify-end items-center py-2 space-x-4">
@@ -272,7 +270,7 @@ function ProgressiveBlurBackground() {
 				className="absolute top-0 bottom-0 left-0 right-0"
 				style={{
 					backdropFilter: "blur(64px)",
-					mask: "linear-gradient(rgba(0, 0, 0, 0) 80%, rgba(0, 0, 0, 1) 100%)",
+					mask: "linear-gradient(rgba(0, 0, 0, 0) 70%, rgba(0, 0, 0, 1) 100%)",
 				}}
 			/>
 		</div>
