@@ -1,19 +1,14 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node"
 import { json, useFetcher, useLoaderData } from "@remix-run/react"
-import clsx from "clsx"
 import dayjs from "dayjs"
-import { useEffect, useRef, useState, type ChangeEvent } from "react"
-import Markdown from "react-markdown"
+import { useEffect, useRef } from "react"
+import { MainEditor } from "~/blog-post-editor/main-editor"
+import { useEditorStore } from "~/blog-post-editor/store"
 import type { BlogPost } from "~/blog/post"
-import { AutoResizingTextArea } from "~/components/auto-resizing-textarea"
-import { Button } from "~/components/button"
-import remarkGfm from "remark-gfm"
-import remarkMath from "remark-math"
-import rehypeKatex from "rehype-katex"
+
 import "katex/dist/katex.min.css"
-import rehypeHighlight from "rehype-highlight"
 import "highlightjs/styles/atom-one-dark.css"
-import { PhotoIcon } from "@heroicons/react/24/outline"
+import { BottomArea } from "~/blog-post-editor/bottom-area"
 
 interface PostUpdate {
 	title?: string
@@ -32,35 +27,36 @@ export default function EditBlogPostPage() {
 	const postData = useLoaderData<typeof loader>()
 	const fetcher = useFetcher()
 
-	const [postTitle, setPostTitle] = useState(postData.title)
-	const [postDescription, setPostDescription] = useState(postData.description)
-	const [postContent, setPostContent] = useState(postData.content)
 	const postUpdate = useRef<PostUpdate>({})
-	const [statusMessage, setStatusMessage] = useState("")
-	const [isPreviewing, setIsPreviewing] = useState(false)
-	const [isFocused, setIsFocused] = useState(false)
-	const canUnfocus = useRef(false)
-	const unfocusTimeout = useRef<ReturnType<typeof setTimeout>>()
 	const autoSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
-	const imageFileInputRef = useRef<HTMLInputElement | null>(null)
+	const setStatusMessage = useEditorStore((state) => state.setStatusMessage)
+	const setIsFocused = useEditorStore((state) => state.setIsFocused)
+	const loadPostIntoStore = useEditorStore((state) => state.loadPostIntoStore)
 
-	useEffect(function unfocusOnMouseMove() {
-		function unfocus() {
-			if (canUnfocus.current) {
-				setIsFocused(false)
+	useEffect(() => {
+		loadPostIntoStore(postData)
+	}, [loadPostIntoStore, postData])
+
+	useEffect(
+		function unfocusOnMouseMove() {
+			function unfocus() {
+				if (useEditorStore.getState().canUnfocus) {
+					setIsFocused(false)
+				}
 			}
-		}
-		document.addEventListener("mousemove", unfocus)
-		return () => {
-			document.removeEventListener("mousemove", unfocus)
-		}
-	}, [])
+			document.addEventListener("mousemove", unfocus)
+			return () => {
+				document.removeEventListener("mousemove", unfocus)
+			}
+		},
+		[setIsFocused],
+	)
 
 	useEffect(
 		function updateStatusMessage() {
 			switch (fetcher.state) {
 				case "idle":
-					if (statusMessage) {
+					if (useEditorStore.getState().statusMessage) {
 						setStatusMessage(`Last saved ${dayjs().fromNow()}`)
 					}
 					break
@@ -73,23 +69,45 @@ export default function EditBlogPostPage() {
 					break
 			}
 		},
-		[statusMessage, fetcher.state],
+		[setStatusMessage, fetcher.state],
 	)
 
-	useEffect(() => {
-		postUpdate.current.title = postTitle
-		autoSaveAfterTimeout()
-	}, [postTitle])
+	useEffect(function autoSaveOnContentChange() {
+		const unsub0 = useEditorStore.subscribe(
+			(state) => state.content,
+			(content) => {
+				postUpdate.current.content = content
+				autoSaveAfterTimeout()
+			},
+		)
+		const unsub1 = useEditorStore.subscribe(
+			(state) => state.title,
+			(title) => {
+				postUpdate.current.title = title
+				autoSaveAfterTimeout()
+			},
+		)
+		const unsub2 = useEditorStore.subscribe(
+			(state) => state.description,
+			(description) => {
+				postUpdate.current.description = description
+				autoSaveAfterTimeout()
+			},
+		)
+		return () => {
+			unsub0()
+			unsub1()
+			unsub2()
+		}
+	}, [])
 
 	useEffect(() => {
-		postUpdate.current.description = postDescription
-		autoSaveAfterTimeout()
-	}, [postDescription])
-
-	useEffect(() => {
-		postUpdate.current.content = postContent
-		autoSaveAfterTimeout()
-	}, [postContent])
+		return () => {
+			if (autoSaveTimeout.current) {
+				clearTimeout(autoSaveTimeout.current)
+			}
+		}
+	}, [])
 
 	function autoSaveAfterTimeout() {
 		if (autoSaveTimeout.current) {
@@ -107,172 +125,12 @@ export default function EditBlogPostPage() {
 		autoSaveTimeout.current = null
 	}
 
-	function onBlogContentInput() {
-		if (unfocusTimeout.current) {
-			clearTimeout(unfocusTimeout.current)
-		}
-
-		setIsFocused(true)
-		canUnfocus.current = false
-		unfocusTimeout.current = setTimeout(() => {
-			canUnfocus.current = true
-		}, 500)
-	}
-
-	function togglePreview() {
-		setIsPreviewing((previewing) => !previewing)
-	}
-
-	function openImagePicker() {
-		imageFileInputRef.current?.click()
-	}
-
-	function onImageChange(event: ChangeEvent<HTMLInputElement>) {
-		console.log(event.currentTarget.files)
-	}
-
 	return (
-		<div className="w-full flex justify-center">
+		<div className="w-full px-16 flex justify-center">
 			<main className="w-full mt-40 lg:max-w-prose">
-				<div className={clsx("transition-all", { "opacity-0": isFocused })}>
-					<AutoResizingTextArea
-						name="postTitle"
-						className="bg-transparent text-6xl w-full focus:outline-none"
-						placeholder="Blog title"
-						value={postTitle}
-						onChange={(event) => {
-							setPostTitle(event.currentTarget.value)
-						}}
-					/>
-					<AutoResizingTextArea
-						name="postDescription"
-						className="bg-transparent opacity-50 text-xl w-full focus:outline-none"
-						placeholder="Blog description"
-						value={postDescription}
-						onChange={(event) => {
-							setPostDescription(event.currentTarget.value)
-						}}
-					/>
-				</div>
-
-				{isPreviewing ? (
-					<div className="my-16 prose dark:prose-invert">
-						<Markdown
-							remarkPlugins={[remarkMath, remarkGfm]}
-							rehypePlugins={[rehypeKatex, rehypeHighlight]}
-							components={{
-								pre: (props) => <pre {...props} className="hljs" />,
-							}}
-						>
-							{postContent}
-						</Markdown>
-					</div>
-				) : (
-					<AutoResizingTextArea
-						className="font-mono bg-transparent w-full my-16 focus:outline-none"
-						placeholder="Content goes here..."
-						name="postContent"
-						onInput={onBlogContentInput}
-						value={postContent}
-						onChange={(event) => {
-							setPostContent(event.currentTarget.value)
-						}}
-					/>
-				)}
-
-				<div
-					className={clsx(
-						"fixed z-10 bottom-0 left-0 right-0 w-full flex flex-col items-center",
-						{
-							"opacity-0": isFocused,
-						},
-					)}
-				>
-					<ProgressiveBlurBackground />
-
-					<div className="z-10 flex flex-col items-start w-full lg:max-w-prose">
-						<div className="w-full flex justify-center">
-							<div className="w-full h-10 lg:max-w-prose"></div>
-						</div>
-
-						<div className="w-full lg:max-w-prose flex justify-end items-center py-2 space-x-4">
-							{/*statusMessage ? <p className="flex-1">{statusMessage}</p> : null*/}
-							<div className="flex flex-row flex-1">
-								<input
-									ref={imageFileInputRef}
-									type="file"
-									multiple
-									className="hidden"
-									onChange={onImageChange}
-								/>
-								<button type="button" onClick={openImagePicker}>
-									<PhotoIcon className="w-6 h-6" />
-								</button>
-							</div>
-							<Button className="px-3 py-1" onClick={togglePreview}>
-								{isPreviewing ? "Edit" : "Preview"}
-							</Button>
-							<Button className="px-3 py-1">Publish</Button>
-						</div>
-					</div>
-				</div>
+				<MainEditor />
+				<BottomArea />
 			</main>
-		</div>
-	)
-}
-
-function ProgressiveBlurBackground() {
-	return (
-		<div className="absolute top-0 bottom-0 left-0 right-0 w-full">
-			<div
-				className="absolute top-0 bottom-0 left-0 right-0"
-				style={{
-					backdropFilter: "blur(1px)",
-					mask: "linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 1) 10%, rgba(0, 0, 0, 1) 30%, rgba(0, 0, 0, 0) 40%)",
-				}}
-			/>
-			<div
-				className="absolute top-0 bottom-0 left-0 right-0"
-				style={{
-					backdropFilter: "blur(2px)",
-					mask: "linear-gradient(rgba(0, 0, 0, 0) 10%, rgba(0, 0, 0, 1) 20%, rgba(0, 0, 0, 1) 40%, rgba(0, 0, 0, 0) 50%)",
-				}}
-			/>
-			<div
-				className="absolute top-0 bottom-0 left-0 right-0"
-				style={{
-					backdropFilter: "blur(4px)",
-					mask: "linear-gradient(rgba(0, 0, 0, 0) 15%, rgba(0, 0, 0, 1) 30%, rgba(0, 0, 0, 1) 50%, rgba(0, 0, 0, 0) 60%)",
-				}}
-			/>
-			<div
-				className="absolute top-0 bottom-0 left-0 right-0"
-				style={{
-					backdropFilter: "blur(8px)",
-					mask: "linear-gradient(rgba(0, 0, 0, 0) 20%, rgba(0, 0, 0, 1) 40%, rgba(0, 0, 0, 1) 60%, rgba(0, 0, 0, 0) 70%)",
-				}}
-			/>
-			<div
-				className="absolute top-0 bottom-0 left-0 right-0"
-				style={{
-					backdropFilter: "blur(16px)",
-					mask: "linear-gradient(rgba(0, 0, 0, 0) 40%, rgba(0, 0, 0, 1) 60%, rgba(0, 0, 0, 1) 80%, rgba(0, 0, 0, 0) 90%)",
-				}}
-			/>
-			<div
-				className="absolute top-0 bottom-0 left-0 right-0"
-				style={{
-					backdropFilter: "blur(32px)",
-					mask: "linear-gradient(rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 1) 80%)",
-				}}
-			/>
-			<div
-				className="absolute top-0 bottom-0 left-0 right-0"
-				style={{
-					backdropFilter: "blur(64px)",
-					mask: "linear-gradient(rgba(0, 0, 0, 0) 70%, rgba(0, 0, 0, 1) 100%)",
-				}}
-			/>
 		</div>
 	)
 }
