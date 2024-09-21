@@ -6,20 +6,30 @@ import remarkGfm from "remark-gfm"
 import remarkMath from "remark-math"
 import { AutoResizingTextArea } from "~/components/auto-resizing-textarea"
 import { useEditorStore } from "./store"
-import { useEffect, useRef } from "react"
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react"
 
-function MainEditor() {
+interface MainEditorRef {
+	contentInput: HTMLTextAreaElement | null
+}
+
+const MainEditor = forwardRef<MainEditorRef>((_, ref) => {
 	const isFocused = useEditorStore((state) => state.isFocused)
+	const contentInputRef = useRef<HTMLTextAreaElement | null>(null)
+
+	useImperativeHandle(ref, () => ({
+		contentInput: contentInputRef.current,
+	}))
+
 	return (
 		<>
 			<div className={clsx("transition-all", { "opacity-0": isFocused })}>
 				<TitleInput />
 				<DescriptionInput />
 			</div>
-			<ContentArea />
+			<ContentArea ref={contentInputRef} />
 		</>
 	)
-}
+})
 
 function TitleInput() {
 	const postTitle = useEditorStore((state) => state.title)
@@ -54,7 +64,7 @@ function DescriptionInput() {
 	)
 }
 
-function ContentArea() {
+const ContentArea = forwardRef<HTMLTextAreaElement | null>((_, ref) => {
 	const postContent = useEditorStore((state) => state.content)
 	const isPreviewing = useEditorStore((state) => state.isPreviewing)
 
@@ -74,10 +84,10 @@ function ContentArea() {
 		)
 	}
 
-	return <ContentEditor />
-}
+	return <ContentEditor ref={ref} />
+})
 
-function ContentEditor() {
+const ContentEditor = forwardRef((_, ref) => {
 	const postContent = useEditorStore((state) => state.content)
 	const setPostContent = useEditorStore((state) => state.setContent)
 	const setIsFocused = useEditorStore((state) => state.setIsFocused)
@@ -106,6 +116,7 @@ function ContentEditor() {
 
 	return (
 		<AutoResizingTextArea
+			ref={ref}
 			className="font-mono bg-transparent w-full my-16 focus:outline-none"
 			placeholder="Content goes here..."
 			name="postContent"
@@ -116,6 +127,7 @@ function ContentEditor() {
 			}}
 		/>
 	)
-}
+})
 
 export { MainEditor }
+export type { MainEditorRef }

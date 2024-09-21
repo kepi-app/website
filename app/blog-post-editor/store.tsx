@@ -3,6 +3,7 @@ import { useRef } from "react"
 import { create, useStore } from "zustand"
 import { subscribeWithSelector } from "zustand/middleware"
 import type { BlogPost } from "~/blog/post"
+import type { MultiUploadResult } from "~/blog/upload"
 
 interface EditorState {
 	isPostDataLoaded: boolean
@@ -14,6 +15,8 @@ interface EditorState {
 	isFocused: boolean
 	canUnfocus: boolean
 	pendingFiles: File[]
+	textSelectionStart: number
+	textSelectionEnd: number
 
 	loadPostIntoStore(postData: BlogPost): void
 	setTitle(title: string): void
@@ -25,6 +28,8 @@ interface EditorState {
 	togglePreview(): void
 	addPendingFiles(files: FileList): void
 	clearPendingFiles(): void
+	setCurrentTextSelection({ start, end }: { start: number; end: number }): void
+	insertUploadedImages(images: MultiUploadResult, offset: number): void
 }
 
 type EditorStore = ReturnType<typeof createEditorStore>
@@ -33,7 +38,7 @@ const EditorStoreContext = React.createContext<EditorStore | null>(null)
 
 function createEditorStore(postData: BlogPost) {
 	return create<EditorState>()(
-		subscribeWithSelector((set) => ({
+		subscribeWithSelector((set, get) => ({
 			isPostDataLoaded: false,
 			title: postData.title,
 			description: postData.description,
@@ -43,6 +48,8 @@ function createEditorStore(postData: BlogPost) {
 			isFocused: false,
 			canUnfocus: true,
 			pendingFiles: [],
+			textSelectionStart: 0,
+			textSelectionEnd: 0,
 
 			loadPostIntoStore: (postData) =>
 				set((state) => ({
@@ -68,6 +75,25 @@ function createEditorStore(postData: BlogPost) {
 					pendingFiles: [...state.pendingFiles, ...files],
 				})),
 			clearPendingFiles: () => set((state) => ({ ...state, pendingFiles: [] })),
+			setCurrentTextSelection: ({ start, end }) =>
+				set((state) => ({
+					...state,
+					textSelectionStart: start,
+					textSelectionEnd: end,
+				})),
+			insertUploadedImages: (images, offset) => {
+				const statements = images.results.map(
+					({ url }) => `![INSERT CAPTION](${url})`,
+				)
+				const currentContent = get().content
+				return set((state) => ({
+					...state,
+					content:
+						currentContent.substring(0, offset) +
+						statements.join("\n") +
+						currentContent.substring(offset),
+				}))
+			},
 		})),
 	)
 }

@@ -2,7 +2,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node"
 import { json, useFetcher, useLoaderData } from "@remix-run/react"
 import dayjs from "dayjs"
 import { useEffect, useRef } from "react"
-import { MainEditor } from "~/blog-post-editor/main-editor"
+import { MainEditor, MainEditorRef } from "~/blog-post-editor/main-editor"
 import {
 	EditorStoreProvider,
 	useEditorStore,
@@ -13,6 +13,7 @@ import type { BlogPost } from "~/blog/post"
 import "katex/dist/katex.min.css"
 import "highlightjs/styles/atom-one-dark.css"
 import { BottomArea } from "~/blog-post-editor/bottom-area"
+import { MultiUploadResult } from "~/blog/upload"
 
 interface PostUpdate {
 	title?: string
@@ -37,15 +38,19 @@ export default function Page() {
 }
 
 function EditBlogPostPage() {
-	const fetcher = useFetcher()
-	const uploadFetcher = useFetcher()
-
 	const postUpdate = useRef<PostUpdate>({})
 	const autoSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+	const mainEditorRef = useRef<MainEditorRef | null>(null)
 	const setStatusMessage = useEditorStore((state) => state.setStatusMessage)
 	const setIsFocused = useEditorStore((state) => state.setIsFocused)
 	const clearPendingFiles = useEditorStore((state) => state.clearPendingFiles)
+	const insertUploadedImages = useEditorStore(
+		(state) => state.insertUploadedImages,
+	)
 	const editorStore = useEditorStoreContext()
+
+	const fetcher = useFetcher()
+	const uploadFetcher = useFetcher<MultiUploadResult>()
 
 	useEffect(
 		function unfocusOnMouseMove() {
@@ -87,6 +92,19 @@ function EditBlogPostPage() {
 			clearPendingFiles()
 		}
 	}, [clearPendingFiles, uploadFetcher.state])
+
+	useEffect(() => {
+		if (!uploadFetcher.data) {
+			return
+		}
+
+		const contentInput = mainEditorRef?.current?.contentInput
+		if (!contentInput) {
+			return
+		}
+
+		insertUploadedImages(uploadFetcher.data, contentInput.selectionEnd)
+	}, [uploadFetcher.data])
 
 	useEffect(
 		function autoSaveOnContentChange() {
@@ -170,7 +188,7 @@ function EditBlogPostPage() {
 	return (
 		<div className="w-full px-16 flex justify-center">
 			<main className="w-full mt-40 lg:max-w-prose">
-				<MainEditor />
+				<MainEditor ref={mainEditorRef} />
 				<BottomArea />
 			</main>
 		</div>
