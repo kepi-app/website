@@ -1,9 +1,8 @@
 import {
-	unstable_composeUploadHandlers,
+	json,
 	unstable_createMemoryUploadHandler,
 	unstable_parseMultipartFormData,
 	type ActionFunctionArgs,
-	type UploadHandler,
 } from "@remix-run/node"
 
 export async function action({ request, params }: ActionFunctionArgs) {
@@ -15,14 +14,12 @@ export async function action({ request, params }: ActionFunctionArgs) {
 
 	const formData = await unstable_parseMultipartFormData(request, uploadHandler)
 
-	await fetch(
+	const res = await fetch(
 		`${process.env.API_URL}/blog/${params.blogSlug}/post/${params.postSlug}/image`,
 		{
 			method: "POST",
 			body: formData,
-			headers: {
-				"Content-Type": "multipart/form-data",
-			},
 		},
 	)
+	return json(await res.json())
 }

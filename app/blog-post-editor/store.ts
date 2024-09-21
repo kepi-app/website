@@ -21,8 +21,8 @@ interface EditorStore {
 	setCanUnfocus(canUnfocus: boolean): void
 	setStatusMessage(statusMessage: string): void
 	togglePreview(): void
-
 	addPendingFiles(files: FileList): void
+	clearPendingFiles(): void
 }
 
 const useEditorStore = create<EditorStore>()(
@@ -55,12 +55,12 @@ const useEditorStore = create<EditorStore>()(
 			set((state) => ({ ...state, statusMessage })),
 		togglePreview: () =>
 			set((state) => ({ ...state, isPreviewing: !state.isPreviewing })),
-
 		addPendingFiles: (files) =>
 			set((state) => ({
 				...state,
 				pendingFiles: [...state.pendingFiles, ...files],
 			})),
+		clearPendingFiles: () => set((state) => ({ ...state, pendingFiles: [] })),
 	})),
 )
 

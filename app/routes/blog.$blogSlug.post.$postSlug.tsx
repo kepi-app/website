@@ -9,6 +9,7 @@ import type { BlogPost } from "~/blog/post"
 import "katex/dist/katex.min.css"
 import "highlightjs/styles/atom-one-dark.css"
 import { BottomArea } from "~/blog-post-editor/bottom-area"
+import { useStoreWithEqualityFn } from "zustand/traditional"
 
 interface PostUpdate {
 	title?: string
@@ -26,12 +27,14 @@ export async function loader({ params }: LoaderFunctionArgs) {
 export default function EditBlogPostPage() {
 	const postData = useLoaderData<typeof loader>()
 	const fetcher = useFetcher()
+	const uploadFetcher = useFetcher()
 
 	const postUpdate = useRef<PostUpdate>({})
 	const autoSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 	const setStatusMessage = useEditorStore((state) => state.setStatusMessage)
 	const setIsFocused = useEditorStore((state) => state.setIsFocused)
 	const loadPostIntoStore = useEditorStore((state) => state.loadPostIntoStore)
+	const clearPendingFiles = useEditorStore((state) => state.clearPendingFiles)
 
 	useEffect(() => {
 		loadPostIntoStore(postData)
@@ -72,6 +75,12 @@ export default function EditBlogPostPage() {
 		[setStatusMessage, fetcher.state],
 	)
 
+	useEffect(() => {
+		if (uploadFetcher.state === "idle") {
+			clearPendingFiles()
+		}
+	}, [clearPendingFiles, uploadFetcher.state])
+
 	useEffect(function autoSaveOnContentChange() {
 		const unsub0 = useEditorStore.subscribe(
 			(state) => state.content,
@@ -100,6 +109,29 @@ export default function EditBlogPostPage() {
 			unsub2()
 		}
 	}, [])
+
+	useEffect(() => {
+		const unsub = useEditorStore.subscribe(
+			(state) => state.pendingFiles,
+			(files) => {
+				if (files.length === 0) {
+					return
+				}
+				const form = new FormData()
+				for (const file of files) {
+					form.append("images", file)
+				}
+				uploadFetcher.submit(form, {
+					encType: "multipart/form-data",
+					method: "POST",
+					action: "./image",
+				})
+			},
+		)
+		return () => {
+			unsub()
+		}
+	}, [uploadFetcher.submit])
 
 	useEffect(() => {
 		return () => {
