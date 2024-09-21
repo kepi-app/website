@@ -2,7 +2,6 @@ import { PhotoIcon } from "@heroicons/react/24/outline"
 import { useRef, type ChangeEvent } from "react"
 import { Button } from "~/components/button"
 import { useEditorStore } from "./store"
-import { useStore } from "zustand"
 
 function ActionButtons() {
 	const addPendingFiles = useEditorStore((state) => state.addPendingFiles)

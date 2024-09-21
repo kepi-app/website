@@ -3,13 +3,16 @@ import { json, useFetcher, useLoaderData } from "@remix-run/react"
 import dayjs from "dayjs"
 import { useEffect, useRef } from "react"
 import { MainEditor } from "~/blog-post-editor/main-editor"
-import { useEditorStore } from "~/blog-post-editor/store"
+import {
+	EditorStoreProvider,
+	useEditorStore,
+	useEditorStoreContext,
+} from "~/blog-post-editor/store"
 import type { BlogPost } from "~/blog/post"
 
 import "katex/dist/katex.min.css"
 import "highlightjs/styles/atom-one-dark.css"
 import { BottomArea } from "~/blog-post-editor/bottom-area"
-import { useStoreWithEqualityFn } from "zustand/traditional"
 
 interface PostUpdate {
 	title?: string
@@ -24,8 +27,16 @@ export async function loader({ params }: LoaderFunctionArgs) {
 	return json<BlogPost>(await res.json())
 }
 
-export default function EditBlogPostPage() {
+export default function Page() {
 	const postData = useLoaderData<typeof loader>()
+	return (
+		<EditorStoreProvider post={postData}>
+			<EditBlogPostPage />
+		</EditorStoreProvider>
+	)
+}
+
+function EditBlogPostPage() {
 	const fetcher = useFetcher()
 	const uploadFetcher = useFetcher()
 
@@ -33,17 +44,13 @@ export default function EditBlogPostPage() {
 	const autoSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 	const setStatusMessage = useEditorStore((state) => state.setStatusMessage)
 	const setIsFocused = useEditorStore((state) => state.setIsFocused)
-	const loadPostIntoStore = useEditorStore((state) => state.loadPostIntoStore)
 	const clearPendingFiles = useEditorStore((state) => state.clearPendingFiles)
-
-	useEffect(() => {
-		loadPostIntoStore(postData)
-	}, [loadPostIntoStore, postData])
+	const editorStore = useEditorStoreContext()
 
 	useEffect(
 		function unfocusOnMouseMove() {
 			function unfocus() {
-				if (useEditorStore.getState().canUnfocus) {
+				if (editorStore.getState().canUnfocus) {
 					setIsFocused(false)
 				}
 			}
@@ -52,14 +59,14 @@ export default function EditBlogPostPage() {
 				document.removeEventListener("mousemove", unfocus)
 			}
 		},
-		[setIsFocused],
+		[setIsFocused, editorStore.getState],
 	)
 
 	useEffect(
 		function updateStatusMessage() {
 			switch (fetcher.state) {
 				case "idle":
-					if (useEditorStore.getState().statusMessage) {
+					if (editorStore.getState().statusMessage) {
 						setStatusMessage(`Last saved ${dayjs().fromNow()}`)
 					}
 					break
@@ -72,7 +79,7 @@ export default function EditBlogPostPage() {
 					break
 			}
 		},
-		[setStatusMessage, fetcher.state],
+		[setStatusMessage, fetcher.state, editorStore.getState],
 	)
 
 	useEffect(() => {
@@ -81,37 +88,40 @@ export default function EditBlogPostPage() {
 		}
 	}, [clearPendingFiles, uploadFetcher.state])
 
-	useEffect(function autoSaveOnContentChange() {
-		const unsub0 = useEditorStore.subscribe(
-			(state) => state.content,
-			(content) => {
-				postUpdate.current.content = content
-				autoSaveAfterTimeout()
-			},
-		)
-		const unsub1 = useEditorStore.subscribe(
-			(state) => state.title,
-			(title) => {
-				postUpdate.current.title = title
-				autoSaveAfterTimeout()
-			},
-		)
-		const unsub2 = useEditorStore.subscribe(
-			(state) => state.description,
-			(description) => {
-				postUpdate.current.description = description
-				autoSaveAfterTimeout()
-			},
-		)
-		return () => {
-			unsub0()
-			unsub1()
-			unsub2()
-		}
-	}, [])
+	useEffect(
+		function autoSaveOnContentChange() {
+			const unsub0 = editorStore.subscribe(
+				(state) => state.content,
+				(content) => {
+					postUpdate.current.content = content
+					autoSaveAfterTimeout()
+				},
+			)
+			const unsub1 = editorStore.subscribe(
+				(state) => state.title,
+				(title) => {
+					postUpdate.current.title = title
+					autoSaveAfterTimeout()
+				},
+			)
+			const unsub2 = editorStore.subscribe(
+				(state) => state.description,
+				(description) => {
+					postUpdate.current.description = description
+					autoSaveAfterTimeout()
+				},
+			)
+			return () => {
+				unsub0()
+				unsub1()
+				unsub2()
+			}
+		},
+		[editorStore.subscribe],
+	)
 
 	useEffect(() => {
-		const unsub = useEditorStore.subscribe(
+		const unsub = editorStore.subscribe(
 			(state) => state.pendingFiles,
 			(files) => {
 				if (files.length === 0) {
@@ -131,7 +141,7 @@ export default function EditBlogPostPage() {
 		return () => {
 			unsub()
 		}
-	}, [uploadFetcher.submit])
+	}, [uploadFetcher.submit, editorStore.subscribe])
 
 	useEffect(() => {
 		return () => {

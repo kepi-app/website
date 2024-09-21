@@ -1,10 +1,5 @@
 import clsx from "clsx"
-import {
-	useEffect,
-	useRef,
-	type FormEvent,
-	type TextareaHTMLAttributes,
-} from "react"
+import { useEffect, useRef, useState, type TextareaHTMLAttributes } from "react"
 
 function AutoResizingTextArea(
 	props: React.DetailedHTMLProps<
@@ -13,15 +8,15 @@ function AutoResizingTextArea(
 	>,
 ) {
 	const textAreaRef = useRef<HTMLTextAreaElement | null>(null)
+	const [shouldHide, setShouldHide] = useState(true)
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
 	useEffect(() => {
 		resizeTextArea()
-	}, [props.value])
-
-	useEffect(() => {
-		resizeTextArea()
-	}, [])
+		if (shouldHide) {
+			setShouldHide(false)
+		}
+	}, [shouldHide, props.value])
 
 	function resizeTextArea() {
 		if (!textAreaRef.current) {
@@ -34,7 +29,9 @@ function AutoResizingTextArea(
 	return (
 		<textarea
 			{...props}
-			className={clsx(props.className, "resize-none")}
+			className={clsx(props.className, "resize-none", {
+				"opacity-0": shouldHide,
+			})}
 			ref={textAreaRef}
 			onInput={(event) => {
 				resizeTextArea()
