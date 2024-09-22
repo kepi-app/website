@@ -69,7 +69,7 @@ const ContentArea = forwardRef<HTMLTextAreaElement | null>((_, ref) => {
 
 	if (isPreviewing) {
 		return (
-			<article className="prose dark:prose-invert mt-16 mb-24">
+			<article className="prose dark:prose-invert mt-16 mb-40">
 				<Markdown
 					remarkPlugins={[remarkMath, remarkGfm]}
 					rehypePlugins={[rehypeKatex, rehypeHighlight]}
