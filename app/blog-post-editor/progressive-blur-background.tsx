@@ -1,6 +1,7 @@
 function ProgressiveBlurBackground() {
 	return (
 		<div className="absolute top-0 bottom-0 left-0 right-0 w-full">
+			<div className="absolute top-0 bottom-0 left-0 right-0 bg-gradient-to-b from-transparent to-zinc-200 dark:to-zinc-900" />
 			<div
 				className="absolute top-0 bottom-0 left-0 right-0"
 				style={{
