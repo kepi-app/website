@@ -7,10 +7,11 @@ function Button({
 >) {
 	return (
 		<button
-			className={`py-1 bg-zinc-600 rounded border border-neutral-500 text-zinc-200 ${className}`}
+			className={`py-1 border-t border-t-neutral-500 text-zinc-200 bg-opacity-60 bg-neutral-500 backdrop-blur-lg ${className}`}
+			style={{ borderRadius: "8px" }}
 			{...props}
 		/>
-	);
+	)
 }
 
-export { Button };
+export { Button }

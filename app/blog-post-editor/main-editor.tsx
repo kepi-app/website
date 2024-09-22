@@ -15,7 +15,6 @@ interface MainEditorRef {
 const MainEditor = forwardRef<MainEditorRef>((_, ref) => {
 	const isFocused = useEditorStore((state) => state.isFocused)
 	const contentInputRef = useRef<HTMLTextAreaElement | null>(null)
-
 	useImperativeHandle(ref, () => ({
 		contentInput: contentInputRef.current,
 	}))
@@ -70,7 +69,7 @@ const ContentArea = forwardRef<HTMLTextAreaElement | null>((_, ref) => {
 
 	if (isPreviewing) {
 		return (
-			<article className="prose dark:prose-invert my-16">
+			<article className="prose dark:prose-invert mt-16 mb-24">
 				<Markdown
 					remarkPlugins={[remarkMath, remarkGfm]}
 					rehypePlugins={[rehypeKatex, rehypeHighlight]}
@@ -114,17 +113,20 @@ const ContentEditor = forwardRef((_, ref) => {
 		}, 500)
 	}
 
+	function onChange(event: React.ChangeEvent<HTMLTextAreaElement>) {
+		setPostContent(event.currentTarget.value)
+	}
+
 	return (
 		<AutoResizingTextArea
 			ref={ref}
-			className="font-mono bg-transparent w-full my-16 focus:outline-none"
+			stickToBottom
+			className="font-mono bg-transparent w-full mt-16 pb-24 focus:outline-none"
 			placeholder="Content goes here..."
 			name="postContent"
 			onInput={onBlogContentInput}
 			value={postContent}
-			onChange={(event) => {
-				setPostContent(event.currentTarget.value)
-			}}
+			onChange={onChange}
 		/>
 	)
 })

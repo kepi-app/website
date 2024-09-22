@@ -5,14 +5,44 @@ import {
 	Scripts,
 	ScrollRestoration,
 } from "@remix-run/react"
+import { useEffect, useRef } from "react"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 
 import "./tailwind.css"
+import { ScrollInfoContext, type ScrollInfo } from "./scroll-context"
 
 dayjs.extend(relativeTime)
 
 export function Layout({ children }: { children: React.ReactNode }) {
+	const scrollInfo = useRef<ScrollInfo>({ left: 0, top: 0, isAtBottom: false })
+
+	useEffect(() => {
+		scrollInfo.current.left = document.documentElement.scrollLeft
+		scrollInfo.current.top = document.documentElement.scrollTop
+		scrollInfo.current.isAtBottom =
+			document.documentElement.scrollHeight -
+				document.documentElement.scrollTop -
+				document.documentElement.clientHeight <
+			1
+	}, [])
+
+	useEffect(() => {
+		function setScrollInfo() {
+			scrollInfo.current.left = document.documentElement.scrollLeft
+			scrollInfo.current.top = document.documentElement.scrollTop
+			scrollInfo.current.isAtBottom =
+				document.documentElement.scrollHeight -
+					document.documentElement.scrollTop -
+					document.documentElement.clientHeight <
+				1
+		}
+		document.addEventListener("scroll", setScrollInfo)
+		return () => {
+			document.removeEventListener("scroll", setScrollInfo)
+		}
+	}, [])
+
 	return (
 		<html lang="en">
 			<head>
@@ -34,7 +64,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
 				<Links />
 			</head>
 			<body>
-				{children}
+				<ScrollInfoContext.Provider value={scrollInfo.current}>
+					{children}
+				</ScrollInfoContext.Provider>
 				<ScrollRestoration />
 				<Scripts />
 			</body>

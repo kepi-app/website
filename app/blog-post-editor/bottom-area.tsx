@@ -18,7 +18,7 @@ function BottomArea() {
 		>
 			<ProgressiveBlurBackground />
 
-			<div className="z-10 flex flex-col items-start w-full lg:max-w-prose">
+			<div className="z-10 flex flex-col items-center w-full lg:max-w-prose">
 				<UploadPreviews />
 				<ActionButtons />
 			</div>
