@@ -1,27 +1,105 @@
-import { Form } from "@remix-run/react"
-import { useId } from "react"
+import type { ActionFunctionArgs } from "@remix-run/node"
+import { json, useFetcher, useNavigate } from "@remix-run/react"
+import sodium from "libsodium-wrappers"
+import { useEffect, useId, useRef } from "react"
 import { Button } from "~/components/button"
 import { Logo } from "~/components/logo"
+import {
+	type CryptInfo,
+	deriveInitialKeys,
+	saveCryptInfoInSessionStorage,
+} from "~/crypt"
+import { commitSession, getSession } from "~/sessions"
+
+interface SignUpResponse {
+	accessToken: string
+	refreshToken: string
+	expiresAtUnixMs: number
+}
 
 export default function LoginPage() {
 	const emailInputId = useId()
 	const passwordInputId = useId()
+	const fetcher = useFetcher<typeof action>()
+	const derivedCryptInfo = useRef<CryptInfo | null>(null)
+	const navigate = useNavigate()
+
+	useEffect(() => {
+		if (fetcher.data && derivedCryptInfo.current) {
+			saveCryptInfoInSessionStorage(derivedCryptInfo.current)
+			navigate("/blog/new", {
+				replace: true,
+			})
+		}
+	}, [fetcher.data, navigate])
+
+	async function submitSignUpForm(event: React.FormEvent<HTMLFormElement>) {
+		const formData = new FormData(event.currentTarget)
+
+		const email = formData.get("email")
+		const password = formData.get("password")
+		if (
+			!email ||
+			!password ||
+			typeof email !== "string" ||
+			typeof password !== "string"
+		) {
+			return
+		}
+
+		const info = await deriveInitialKeys(email, password)
+		derivedCryptInfo.current = info
+
+		const signUpFormData = new FormData()
+		signUpFormData.set("email", email)
+		signUpFormData.set(
+			"masterPasswordHash",
+			sodium.to_base64(
+				info.masterPasswordHash,
+				sodium.base64_variants.ORIGINAL,
+			),
+		)
+		signUpFormData.set(
+			"protectedSymmetricKey",
+			sodium.to_base64(
+				info.protectedSymmetricKey,
+				sodium.base64_variants.ORIGINAL,
+			),
+		)
+		signUpFormData.set(
+			"iv",
+			sodium.to_base64(info.iv, sodium.base64_variants.ORIGINAL),
+		)
+		signUpFormData.set(
+			"authTag",
+			sodium.to_base64(info.authTag, sodium.base64_variants.ORIGINAL),
+		)
+
+		fetcher.submit(signUpFormData, {
+			method: "POST",
+			encType: "multipart/form-data",
+		})
+	}
 
 	return (
 		<div className="w-full h-screen flex justify-center items-center">
-			<main className="w-full lg:max-w-prose flex flex-col justify-center items-center">
-				<div className="flex flex-col items-center mb-20">
+			<main className="w-full max-w-prose flex flex-col justify-center items-center">
+				<div className="flex flex-col items-center mb-12">
 					<div className="w-14 h-14 mb-4">
 						<Logo />
 					</div>
-					<h1 className="text-xl">welcome to kepi</h1>
+					<h1 className="text-2xl">welcome to kepi</h1>
 				</div>
 
-				<Form className="flex flex-col items-center">
+				<fetcher.Form
+					className="flex flex-col items-center"
+					onSubmit={submitSignUpForm}
+				>
 					<div className="grid grid-cols-3 grid-rows-2 gap-4">
 						<label htmlFor={emailInputId}>email</label>
 						<input
 							type="email"
+							name="email"
 							placeholder="sakurajima@mai.com"
 							id={emailInputId}
 							className="col-span-2 bg-transparent placeholder:opacity-20"
@@ -29,17 +107,50 @@ export default function LoginPage() {
 						<label htmlFor={passwordInputId}>password</label>
 						<input
 							type="password"
+							name="password"
 							id={passwordInputId}
 							className="col-span-2 bg-transparent placeholder:opacity-20"
-							placeholder="enter your password here"
+							placeholder="new password"
 						/>
 					</div>
 
-					<Button type="submit" className="mt-20 w-full">
+					<Button type="submit" containerClassName="w-full mt-12">
 						Sign up
 					</Button>
-				</Form>
+				</fetcher.Form>
+
+				<p className="text-xs text-center opacity-80 col-span-3 pt-8 my-4 leading-loose">
+					your password will be used for encryption. make a note of your
+					password.
+					<br />
+					<strong>
+						if you forget your password, we cannot recover your content.
+					</strong>
+				</p>
 			</main>
 		</div>
+	)
+}
+
+export async function action({ request }: ActionFunctionArgs) {
+	const form = await request.formData()
+	const res = await fetch(`${process.env.API_URL}/sign-up`, {
+		method: "POST",
+		body: form,
+	})
+
+	const tokens: SignUpResponse = await res.json()
+	const session = await getSession(request.headers.get("Cookie"))
+	session.set("accessToken", tokens.accessToken)
+	session.set("refreshToken", tokens.refreshToken)
+	session.set("expiresAtUnixMs", tokens.expiresAtUnixMs)
+
+	return json(
+		{},
+		{
+			headers: {
+				"Set-Cookie": await commitSession(session),
+			},
+		},
 	)
 }

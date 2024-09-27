@@ -1,74 +1,99 @@
-import { Form } from "@remix-run/react"
-import clsx from "clsx"
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node"
+import { Form, json, redirect } from "@remix-run/react"
 import { useEffect, useRef, useState } from "react"
-import { AutoResizingTextArea } from "~/components/auto-resizing-textarea"
+import { authenticate } from "~/auth"
+import type { Blog } from "~/blog/blog"
 import { Button } from "~/components/button"
+import { ApiError } from "~/error"
+import { fetchApi } from "~/fetch-api"
+import { getSession } from "~/sessions"
+
+export async function loader({ request }: LoaderFunctionArgs) {
+	const session = await getSession(request.headers.get("Cookie"))
+	await authenticate(request, session)
+	return json({})
+}
 
 export default function NewBlogPage() {
-	const [isFocused, setIsFocused] = useState(false)
-	const unfocusTimer = useRef<ReturnType<typeof setTimeout>>()
-	const canUnfocus = useRef(false)
-
-	useEffect(function unfocusOnMouseMove() {
-		function unfocus() {
-			if (canUnfocus.current) {
-				setIsFocused(false)
-			}
-		}
-		document.addEventListener("mousemove", unfocus)
-		return () => {
-			document.removeEventListener("mousemove", unfocus)
-		}
-	}, [])
-
-	function onBlogContentInput() {
-		if (unfocusTimer.current) {
-			clearTimeout(unfocusTimer.current)
-		}
-		setIsFocused(true)
-		canUnfocus.current = false
-		unfocusTimer.current = setTimeout(() => {
-			canUnfocus.current = true
-		}, 500)
-	}
-
 	return (
-		<div className="w-full flex justify-center">
-			<main className="w-full mt-40 lg:max-w-prose">
-				<Form method="POST">
-					<div className={clsx("transition-all", { "opacity-0": isFocused })}>
-						<AutoResizingTextArea
-							name="blogTitle"
-							className="bg-transparent text-6xl w-full focus:outline-none"
-							placeholder="Blog title"
-						/>
-						<AutoResizingTextArea
-							name="blogDescription"
-							className="bg-transparent opacity-50 text-xl w-full focus:outline-none transition-all"
-							placeholder="Blog description"
-						/>
+		<div className="w-full h-screen flex justify-center">
+			<main className="w-full h-full max-w-prose flex items-center justify-center">
+				<Form
+					method="POST"
+					className="w-full h-full relative flex flex-col justify-center"
+				>
+					<h1 className="text-xl mb-8">name your first blog</h1>
+					<div className="flex items-start mb-16">
+						<BlogSlugInput />
+						<span className="text-3xl opacity-50">.kepi.blog</span>
 					</div>
-
-					<AutoResizingTextArea
-						className="font-mono bg-transparent w-full mt-16 focus:outline-none"
-						placeholder="Content goes here..."
-						name="blogContent"
-						onInput={onBlogContentInput}
-					/>
-
-					<div
-						className={clsx(
-							"absolute bottom-0 left-0 right-0 border-t border-t-zinc-300 dark:border-t-zinc-800 w-full flex items-center justify-center",
-							{ "opacity-0": isFocused },
-						)}
+					<Button
+						type="submit"
+						containerClassName="absolute bottom-0 right-0 w-20 mb-10 self-end"
 					>
-						<div className="w-full lg:max-w-prose flex justify-end py-2 space-x-4">
-							<Button className="px-3 py-1">Save as draft</Button>
-							<Button className="px-3 py-1">Publish</Button>
-						</div>
-					</div>
+						Next
+					</Button>
 				</Form>
 			</main>
 		</div>
 	)
+}
+
+function BlogSlugInput() {
+	const [inputValue, setInputValue] = useState("")
+	const inputRef = useRef<HTMLInputElement | null>(null)
+
+	useEffect(() => {
+		if (inputRef.current) {
+			inputRef.current.focus()
+		}
+	}, [])
+
+	return (
+		<div className="relative min-w-[1em] w-min">
+			{inputValue ? (
+				<span className="invisible whitespace-pre text-3xl">{inputValue}</span>
+			) : null}
+			<input
+				ref={inputRef}
+				name="blogSlug"
+				className="absolute left-0 w-full bg-zinc-200 dark:bg-zinc-900 focus:outline-none text-3xl"
+				type="text"
+				value={inputValue}
+				onChange={(event) => {
+					setInputValue(event.currentTarget.value)
+				}}
+			/>
+		</div>
+	)
+}
+
+export async function action({ request }: ActionFunctionArgs) {
+	const session = await getSession(request.headers.get("Cookie"))
+	const headers = new Headers()
+	const accessToken = await authenticate(request, session, headers)
+
+	const formData = await request.formData()
+	const newBlogSlug = formData.get("blogSlug")
+
+	const result = await fetchApi<Blog>(`/blog/${newBlogSlug}`, {
+		method: "PUT",
+		headers: {
+			Authorization: `Bearer ${accessToken}`,
+		},
+	})
+	if (result.isErr()) {
+		switch (result.error) {
+			case ApiError.Unauthorized:
+				return redirect("/login")
+
+			case ApiError.Internal:
+			case ApiError.Conflict:
+				return json({ error: result.error })
+		}
+	}
+
+	console.log(result.value)
+
+	return redirect(`/blog/${result.value.slug}/dashboard`, { headers })
 }

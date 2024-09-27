@@ -1,16 +1,63 @@
+import clsx from "clsx"
+import {
+	useRef,
+	type ButtonHTMLAttributes,
+	type DetailedHTMLProps,
+} from "react"
+
+interface ButtonProps
+	extends Omit<
+		DetailedHTMLProps<
+			ButtonHTMLAttributes<HTMLButtonElement>,
+			HTMLButtonElement
+		>,
+		"className"
+	> {
+	containerClassName?: string
+	buttonClassName?: string
+}
+
 function Button({
-	className,
+	containerClassName,
+	buttonClassName,
 	...props
-}: React.DetailedHTMLProps<
-	React.ButtonHTMLAttributes<HTMLButtonElement>,
-	HTMLButtonElement
->) {
+}: ButtonProps) {
+	const btnRef = useRef<HTMLButtonElement | null>(null)
+
+	function showHoverHighlight(
+		event: React.MouseEvent<HTMLButtonElement, MouseEvent>,
+	) {
+		if (!btnRef.current) {
+			return
+		}
+		const rect = event.currentTarget.getBoundingClientRect()
+		const x = event.clientX - rect.left
+		const y = event.clientY - rect.top
+		btnRef.current.style.backgroundImage = `radial-gradient(circle at ${x}px ${y}px, rgba(255, 255, 255, 8%), transparent)`
+	}
+
 	return (
-		<button
-			className={`py-1 border-t border-t-neutral-500 text-zinc-200 bg-opacity-60 bg-neutral-500 backdrop-blur-lg ${className}`}
-			style={{ borderRadius: "8px" }}
-			{...props}
-		/>
+		<div
+			className={clsx(
+				"h-10 rounded-full p-1 shadow-[inset_0_0_4px_rgba(0,0,0,24%)] dark:shadow-[inset_0_0_4px_rgba(255,255,255,50%)]",
+				containerClassName,
+			)}
+		>
+			<button
+				ref={btnRef}
+				className={clsx(
+					"h-full w-full rounded-full border-t border-t-white text-sm bg-neutral-100 bg-opacity-70 backdrop-blur-lg px-4 shadow-lg flex items-center justify-center dark:bg-neutral-100 dark:bg-opacity-20 dark:border-opacity-20",
+					buttonClassName,
+				)}
+				onMouseLeave={() => {
+					if (btnRef.current) {
+						btnRef.current.style.backgroundImage = ""
+					}
+				}}
+				onMouseMove={showHoverHighlight}
+				{...props}
+			/>
+		</div>
 	)
 }
 

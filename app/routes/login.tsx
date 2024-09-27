@@ -13,7 +13,7 @@ export default function LoginPage() {
 		<div className="w-full h-screen flex justify-center items-center">
 			<main className="w-full lg:max-w-prose flex flex-col justify-center items-center">
 				<div
-					className={clsx("w-14 h-14 mb-20", {
+					className={clsx("w-14 h-14 mb-12", {
 						"animate-bounce": navigation.state === "submitting",
 					})}
 				>
@@ -27,18 +27,18 @@ export default function LoginPage() {
 							type="email"
 							placeholder="sakurajima@mai.com"
 							id={emailInputId}
-							className="col-span-2 bg-transparent placeholder:opacity-20"
+							className="col-span-2 bg-transparent placeholder:opacity-50 focus:outline-0"
 						/>
 						<label htmlFor={passwordInputId}>password</label>
 						<input
 							type="password"
 							id={passwordInputId}
-							className="col-span-2 bg-transparent placeholder:opacity-20"
-							placeholder="enter your password here"
+							className="col-span-2 bg-transparent placeholder:opacity-50 focus:outline-0"
+							placeholder="your password"
 						/>
 					</div>
 
-					<Button type="submit" className="mt-20 w-full">
+					<Button type="submit" containerClassName="mt-12 w-full">
 						Login
 					</Button>
 				</Form>
