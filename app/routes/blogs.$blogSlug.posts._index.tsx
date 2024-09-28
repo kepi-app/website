@@ -77,7 +77,14 @@ export default function BlogPostDashboard() {
 	return (
 		<div className="w-full flex justify-center">
 			<main className="w-full max-w-prose mt-20">
-				<h2 className="text-lg opacity-80">{params.blogSlug}</h2>
+				<h2 className="text-lg opacity-80">
+					<a
+						className="hover:underline"
+						href={`/blogs/${params.blogSlug}/dashboard`}
+					>
+						{params.blogSlug}
+					</a>
+				</h2>
 				<div className="flex flex-row justify-between items-center">
 					<h1 className="text-4xl my-8">your posts</h1>
 					<SmallButton
