@@ -14,6 +14,10 @@ import "katex/dist/katex.min.css"
 import "highlightjs/styles/atom-one-dark.css"
 import { BottomArea } from "~/blog-post-editor/bottom-area"
 import type { MultiUploadResult } from "~/blog/upload"
+import { getSession } from "~/sessions"
+import { authenticate } from "~/auth"
+import { fetchApi } from "~/fetch-api"
+import { ApiError } from "~/error"
 
 interface PostUpdate {
 	title?: string
@@ -21,19 +25,40 @@ interface PostUpdate {
 	content?: string
 }
 
-export async function loader({ params }: LoaderFunctionArgs) {
-	const res = await fetch(
-		`${process.env.API_URL}/blogs/${params.blogSlug}/post/${params.postSlug}`,
+export async function loader({ request, params }: LoaderFunctionArgs) {
+	const session = await getSession(request.headers.get("Cookie"))
+	const accessToken = await authenticate(request, session)
+	const result = await fetchApi<BlogPost>(
+		`/blogs/${params.blogSlug}/posts/${params.postSlug}`,
+		{
+			headers: { Authorization: `Bearer ${accessToken}` },
+		},
 	)
-	return json<BlogPost>(await res.json())
+	if (result.isErr()) {
+		return json({ error: ApiError.Internal }, { status: 500 })
+	}
+	return json(result.value)
 }
 
 export default function Page() {
 	const postData = useLoaderData<typeof loader>()
+	if ("error" in postData) {
+		return <ErrorPage />
+	}
 	return (
 		<EditorStoreProvider post={postData}>
 			<EditBlogPostPage />
 		</EditorStoreProvider>
+	)
+}
+
+function ErrorPage() {
+	return (
+		<div className="w-full px-16 flex justify-center bg-zinc-200 dark:bg-zinc-900">
+			<main className="w-full mt-40 max-w-prose">
+				<p>an error occurred on our end when opening this post.</p>
+			</main>
+		</div>
 	)
 }
 
