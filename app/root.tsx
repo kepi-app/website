@@ -68,7 +68,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
 				<ScrollInfoContext.Provider value={scrollInfo.current}>
 					{children}
 				</ScrollInfoContext.Provider>
-				<ClientOnly>{() => <Toaster />}</ClientOnly>
+				<ClientOnly>
+					{() => (
+						<Toaster
+							toastOptions={{
+								className: "bg-zinc-200 dark:bg-zinc-900",
+							}}
+						/>
+					)}
+				</ClientOnly>
 				<ScrollRestoration />
 				<Scripts />
 			</body>

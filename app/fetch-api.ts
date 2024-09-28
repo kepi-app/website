@@ -2,9 +2,10 @@ import { err, ok, type Result } from "trycat"
 import { ApiError } from "./error"
 
 type Endpoint =
-	| `/blog/${string}`
-	| `/blog/${string}/posts`
-	| `/blog/${string}`
+	| "/blogs"
+	| `/blogs/${string}`
+	| `/blogs/${string}/posts`
+	| `/blogs/${string}`
 	| "/sign-up"
 	| "/auth/token"
 	| "/auth/login"
@@ -23,6 +24,7 @@ async function fetchApi<T = undefined>(
 
 			case 200: {
 				const json: T = await res.json()
+				console.log("json", json)
 				return ok(json)
 			}
 

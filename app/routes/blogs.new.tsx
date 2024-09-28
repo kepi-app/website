@@ -76,7 +76,7 @@ export async function action({ request }: ActionFunctionArgs) {
 	const formData = await request.formData()
 	const newBlogSlug = formData.get("blogSlug")
 
-	const result = await fetchApi<Blog>(`/blog/${newBlogSlug}`, {
+	const result = await fetchApi<Blog>(`/blogs/${newBlogSlug}`, {
 		method: "PUT",
 		headers: {
 			Authorization: `Bearer ${accessToken}`,

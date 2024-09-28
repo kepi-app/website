@@ -16,7 +16,6 @@ async function authenticate(
 	headers = new Headers(),
 ) {
 	let accessToken = session.get("accessToken")
-	console.log("accessToken in authenticate", accessToken)
 	if (!accessToken) {
 		throw redirect("/login")
 	}

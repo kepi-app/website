@@ -34,7 +34,7 @@ export default function Index() {
 					kepi handle the rest.
 				</p>
 				<div className="flex flex-row space-x-4">
-					<a href="/blog/kennethnym/dashboard" className="font-bold underline">
+					<a href="/login" className="font-bold underline">
 						Login
 					</a>
 					<a href="/sign-up" className="font-bold underline">

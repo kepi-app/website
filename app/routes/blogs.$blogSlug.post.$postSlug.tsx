@@ -2,7 +2,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node"
 import { json, useFetcher, useLoaderData } from "@remix-run/react"
 import dayjs from "dayjs"
 import { useEffect, useRef } from "react"
-import { MainEditor, MainEditorRef } from "~/blog-post-editor/main-editor"
+import { MainEditor, type MainEditorRef } from "~/blog-post-editor/main-editor"
 import {
 	EditorStoreProvider,
 	useEditorStore,
@@ -13,7 +13,7 @@ import type { BlogPost } from "~/blog/post"
 import "katex/dist/katex.min.css"
 import "highlightjs/styles/atom-one-dark.css"
 import { BottomArea } from "~/blog-post-editor/bottom-area"
-import { MultiUploadResult } from "~/blog/upload"
+import type { MultiUploadResult } from "~/blog/upload"
 
 interface PostUpdate {
 	title?: string
@@ -23,7 +23,7 @@ interface PostUpdate {
 
 export async function loader({ params }: LoaderFunctionArgs) {
 	const res = await fetch(
-		`${process.env.API_URL}/blog/${params.blogSlug}/post/${params.postSlug}`,
+		`${process.env.API_URL}/blogs/${params.blogSlug}/post/${params.postSlug}`,
 	)
 	return json<BlogPost>(await res.json())
 }

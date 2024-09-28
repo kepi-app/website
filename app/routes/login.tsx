@@ -1,11 +1,10 @@
-import { type ActionFunctionArgs, json } from "@remix-run/node"
 import {
-	Form,
+	type ActionFunctionArgs,
 	json,
-	useActionData,
-	useFetcher,
-	useNavigation,
-} from "@remix-run/react"
+	redirect,
+	type LoaderFunctionArgs,
+} from "@remix-run/node"
+import { useFetcher } from "@remix-run/react"
 import clsx from "clsx"
 import { useEffect, useId, useState } from "react"
 import _sodium from "libsodium-wrappers-sumo"
@@ -14,13 +13,23 @@ import { Logo } from "~/components/logo"
 import { hashMasterPassword } from "~/crypt"
 import { fetchApi } from "~/fetch-api"
 import { ApiError } from "~/error"
-import { getSession } from "~/sessions"
+import { commitSession, getSession } from "~/sessions"
 import toast from "react-hot-toast"
+import { authenticate } from "~/auth"
 
 interface LoginResponse {
 	accessToken: string
 	refreshToken: string
 	expiresAtUnixMs: number
+}
+
+export async function loader({ request }: LoaderFunctionArgs) {
+	const session = await getSession(request.headers.get("Cookie"))
+	const refreshToken = session.get("refreshToken")
+	if (refreshToken) {
+		return redirect("/blogs")
+	}
+	return null
 }
 
 export default function LoginPage() {
@@ -134,10 +143,8 @@ export async function action({ request }: ActionFunctionArgs) {
 	if (result.isErr()) {
 		switch (result.error) {
 			case ApiError.Unauthorized:
-				console.log("unauthorized")
 				return json({ error: ApiError.Unauthorized }, { status: 401 })
 			default:
-				console.log("internal")
 				return json({ error: ApiError.Internal }, { status: 500 })
 		}
 	}
@@ -148,5 +155,9 @@ export async function action({ request }: ActionFunctionArgs) {
 	session.set("refreshToken", tokens.refreshToken)
 	session.set("expiresAtUnixMs", tokens.expiresAtUnixMs)
 
-	console.log("logged in!")
+	return redirect("/blogs", {
+		headers: {
+			"Set-Cookie": await commitSession(session),
+		},
+	})
 }

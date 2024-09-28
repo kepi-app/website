@@ -1,7 +1,16 @@
+import type { LoaderFunctionArgs } from "@remix-run/node"
 import { useParams } from "@remix-run/react"
+import { authenticate } from "~/auth"
 import { Anchor } from "~/components/anchor"
+import { getSession } from "~/sessions"
 
 type RouteParams = "blogSlug"
+
+export async function loader({ request }: LoaderFunctionArgs) {
+	const session = await getSession(request.headers.get("Cookie"))
+	await authenticate(request, session)
+	return null
+}
 
 export default function BlogDashboard() {
 	const params = useParams<RouteParams>()
@@ -15,7 +24,7 @@ export default function BlogDashboard() {
 					<Anchor>home page</Anchor>
 				</li>
 				<li>
-					<Anchor href={`/blog/${params.blogSlug}/posts`}>posts</Anchor>
+					<Anchor href={`/blogs/${params.blogSlug}/posts`}>posts</Anchor>
 				</li>
 				<li>
 					<Anchor>about page</Anchor>
