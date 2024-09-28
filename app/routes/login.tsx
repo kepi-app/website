@@ -4,29 +4,38 @@ import {
 	redirect,
 	type LoaderFunctionArgs,
 } from "@remix-run/node"
-import { useFetcher } from "@remix-run/react"
+import { useFetcher, useNavigate } from "@remix-run/react"
 import clsx from "clsx"
-import { useEffect, useId, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import _sodium from "libsodium-wrappers-sumo"
 import { Button } from "~/components/button"
 import { Logo } from "~/components/logo"
-import { hashMasterPassword } from "~/crypt"
+import {
+	SymmetricKey,
+	deriveStretchedMasterKey,
+	hashMasterPassword,
+	saveSymmetricKeyInSessionStorage,
+} from "~/crypt"
 import { fetchApi } from "~/fetch-api"
 import { ApiError } from "~/error"
 import { commitSession, getSession } from "~/sessions"
 import toast from "react-hot-toast"
-import { authenticate } from "~/auth"
+import { trys } from "trycat"
 
 interface LoginResponse {
 	accessToken: string
 	refreshToken: string
 	expiresAtUnixMs: number
+	protectedSymmetricKey: string
+	authTag: string
+	iv: string
 }
 
 export async function loader({ request }: LoaderFunctionArgs) {
 	const session = await getSession(request.headers.get("Cookie"))
 	const refreshToken = session.get("refreshToken")
-	if (refreshToken) {
+	console.log(session.get("isLoggingIn"))
+	if (refreshToken && !session.get("isLoggingIn")) {
 		return redirect("/blogs")
 	}
 	return null
@@ -37,17 +46,27 @@ export default function LoginPage() {
 	const passwordInputId = useId()
 	const fetcher = useFetcher<typeof action>()
 	const [isSubmitting, setIsSubmitting] = useState(false)
+	const stretchedMasterKey = useRef<SymmetricKey | null>(null)
+	const navigate = useNavigate()
 
 	useEffect(() => {
-		if (fetcher.data?.error) {
-			setIsSubmitting(false)
-			switch (fetcher.data.error) {
-				case ApiError.Unauthorized:
-					toast.error("incorrect email or password")
-					break
-				default:
-					toast.error("an issue happened on our end. please try again later.")
-					break
+		if (fetcher.data) {
+			if ("error" in fetcher.data) {
+				setIsSubmitting(false)
+				switch (fetcher.data.error) {
+					case ApiError.Unauthorized:
+						toast.error("incorrect email or password")
+						break
+					default:
+						toast.error("an issue happened on our end. please try again later.")
+						break
+				}
+			} else {
+				decryptSymmetricKey(
+					fetcher.data.protectedSymmetricKey,
+					fetcher.data.authTag,
+					fetcher.data.iv,
+				)
 			}
 		}
 	}, [fetcher.data])
@@ -79,13 +98,74 @@ export default function LoginPage() {
 			return
 		}
 
+		const stretchedMasterKeyResult = await deriveStretchedMasterKey(
+			hashResult.value.masterKey.hash,
+		)
+		if (stretchedMasterKeyResult.isErr()) {
+			toast.error("an error occurred on our end. please try again later.")
+			setIsSubmitting(false)
+			return
+		}
+
+		stretchedMasterKey.current = stretchedMasterKeyResult.value
+
 		form.set(
 			"passwordHash",
-			sodium.to_base64(hashResult.value.hash, sodium.base64_variants.ORIGINAL),
+			sodium.to_base64(
+				hashResult.value.masterPasswordHash.hash,
+				sodium.base64_variants.ORIGINAL,
+			),
 		)
 		form.delete("password")
 
 		fetcher.submit(form, { method: "POST" })
+	}
+
+	async function decryptSymmetricKey(
+		protectedSymmetricKey: string,
+		authTag: string,
+		iv: string,
+	) {
+		await _sodium.ready
+		const sodium = _sodium
+
+		const stretchedMasterKeyBytes = stretchedMasterKey.current
+		if (!stretchedMasterKeyBytes) {
+			setIsSubmitting(false)
+			toast.error("an error occurred on our end. please try again later.")
+			return
+		}
+
+		const protectedSymmetricKeyBytes = sodium.from_base64(
+			protectedSymmetricKey,
+			sodium.base64_variants.ORIGINAL,
+		)
+		const authTagBytes = sodium.from_base64(
+			authTag,
+			sodium.base64_variants.ORIGINAL,
+		)
+		const ivBytes = sodium.from_base64(iv, sodium.base64_variants.ORIGINAL)
+
+		const symmetricKeyBytes = trys(() =>
+			sodium.crypto_aead_xchacha20poly1305_ietf_decrypt_detached(
+				null,
+				protectedSymmetricKeyBytes,
+				authTagBytes,
+				"",
+				ivBytes,
+				stretchedMasterKeyBytes.encryptionKey,
+				"uint8array",
+			),
+		)
+		if (symmetricKeyBytes.isErr()) {
+			setIsSubmitting(false)
+			toast.error("an error occured on our end. please try again later.")
+		} else {
+			saveSymmetricKeyInSessionStorage(
+				new SymmetricKey(symmetricKeyBytes.value),
+			)
+			navigate("/blogs", { replace: true })
+		}
 	}
 
 	return (
@@ -149,15 +229,23 @@ export async function action({ request }: ActionFunctionArgs) {
 		}
 	}
 
-	const tokens = result.value
+	const response = result.value
 	const session = await getSession(request.headers.get("Cookie"))
-	session.set("accessToken", tokens.accessToken)
-	session.set("refreshToken", tokens.refreshToken)
-	session.set("expiresAtUnixMs", tokens.expiresAtUnixMs)
+	session.set("accessToken", response.accessToken)
+	session.set("refreshToken", response.refreshToken)
+	session.set("expiresAtUnixMs", response.expiresAtUnixMs)
+	session.flash("isLoggingIn", true)
 
-	return redirect("/blogs", {
-		headers: {
-			"Set-Cookie": await commitSession(session),
+	return json(
+		{
+			protectedSymmetricKey: response.protectedSymmetricKey,
+			authTag: response.authTag,
+			iv: response.iv,
 		},
-	})
+		{
+			headers: {
+				"Set-Cookie": await commitSession(session),
+			},
+		},
+	)
 }

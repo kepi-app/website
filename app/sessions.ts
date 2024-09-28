@@ -7,6 +7,7 @@ interface SessionData {
 	refreshToken: string
 	accessToken: string
 	expiresAtUnixMs: number
+	isLoggingIn?: boolean
 }
 
 console.log(process.env.NODE_ENV)

@@ -13,13 +13,16 @@ type Endpoint =
 
 async function fetchApi<T = undefined>(
 	endpoint: Endpoint,
-	init?: RequestInit,
+	init?: RequestInit & { redirectToLogin?: boolean },
 ): Promise<Result<T, ApiError>> {
 	try {
 		const res = await fetch(`${process.env.API_URL}${endpoint}`, init)
 		switch (res.status) {
 			case 401:
-				throw redirect("/login")
+				if (init?.redirectToLogin) {
+					throw redirect("/login")
+				}
+				return err(ApiError.Unauthorized)
 			case 409:
 				return err(ApiError.Conflict)
 			case 200: {

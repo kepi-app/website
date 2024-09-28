@@ -7,7 +7,7 @@ import { Logo } from "~/components/logo"
 import {
 	type CryptInfo,
 	deriveInitialKeys,
-	saveCryptInfoInSessionStorage,
+	saveSymmetricKeyInSessionStorage,
 } from "~/crypt"
 import { commitSession, getSession } from "~/sessions"
 
@@ -26,7 +26,7 @@ export default function LoginPage() {
 
 	useEffect(() => {
 		if (fetcher.data && derivedCryptInfo.current) {
-			saveCryptInfoInSessionStorage(derivedCryptInfo.current)
+			saveSymmetricKeyInSessionStorage(derivedCryptInfo.current.symmetricKey)
 			navigate("/blog/new", {
 				replace: true,
 			})
@@ -48,6 +48,7 @@ export default function LoginPage() {
 		}
 
 		const info = await deriveInitialKeys(email, password)
+		console.log(info)
 		derivedCryptInfo.current = info
 
 		const signUpFormData = new FormData()
@@ -74,6 +75,8 @@ export default function LoginPage() {
 			"authTag",
 			sodium.to_base64(info.authTag, sodium.base64_variants.ORIGINAL),
 		)
+
+		console.log(signUpFormData)
 
 		fetcher.submit(signUpFormData, {
 			method: "POST",

@@ -1,7 +1,7 @@
 import _sodium from "libsodium-wrappers-sumo"
 import argon2 from "argon2-browser/dist/argon2-bundled.min.js"
 import type { Argon2BrowserHashResult } from "argon2-browser"
-import { err, ok, type Result } from "trycat"
+import { err, ok, tryp, type Result } from "trycat"
 
 const MASTER_KEY_BYTE_LENGTH = 32
 const STRETCHED_MASTER_KEY_BYTE_LENGTH = 64
@@ -50,6 +50,11 @@ interface CryptInfo {
 	protectedSymmetricKey: Uint8Array
 	iv: Uint8Array
 	authTag: Uint8Array
+}
+
+interface HashResult {
+	masterKey: Argon2BrowserHashResult
+	masterPasswordHash: Argon2BrowserHashResult
 }
 
 async function deriveInitialKeys(
@@ -101,6 +106,8 @@ async function deriveInitialKeys(
 		)
 		.then((key) => new SymmetricKey(new Uint8Array(key)))
 
+	console.log("stretched master key", stretchedMasterKey.toString())
+
 	const symmetricKey = SymmetricKey.generate()
 	const iv = crypto.getRandomValues(new Uint8Array(IV_BYTE_LENGTH))
 
@@ -126,7 +133,7 @@ async function deriveInitialKeys(
 async function hashMasterPassword(
 	email: string,
 	password: string,
-): Promise<Result<Argon2BrowserHashResult, unknown>> {
+): Promise<Result<HashResult, unknown>> {
 	const textEncoder = new TextEncoder()
 	const masterKeySalt = textEncoder.encode(email)
 	const masterPasswordHashSalt = textEncoder.encode(password)
@@ -148,15 +155,52 @@ async function hashMasterPassword(
 			hashLen: MASTER_KEY_BYTE_LENGTH,
 		})
 
-		return ok(masterPasswordHash)
+		return ok({ masterKey, masterPasswordHash })
 	} catch (e) {
 		return err(e)
 	}
 }
 
-function saveCryptInfoInSessionStorage(info: CryptInfo) {
-	sessionStorage.setItem("symmetricKey", info.symmetricKey.toString())
+async function deriveStretchedMasterKey(
+	masterKeyBytes: Uint8Array,
+): Promise<Result<SymmetricKey, unknown>> {
+	const ikm = await tryp(
+		crypto.subtle.importKey("raw", masterKeyBytes, { name: "HKDF" }, false, [
+			"deriveBits",
+		]),
+	)
+	if (ikm.isErr()) {
+		return ikm
+	}
+	const stretchedMasterKey = (
+		await tryp(
+			crypto.subtle.deriveBits(
+				{
+					name: "HKDF",
+					hash: "SHA-256",
+					salt: new ArrayBuffer(0),
+					info: new ArrayBuffer(0),
+				},
+				ikm.value,
+				STRETCHED_MASTER_KEY_BYTE_LENGTH * 8,
+			),
+		)
+	).map((key) => new SymmetricKey(new Uint8Array(key)))
+	if (stretchedMasterKey.isErr()) {
+		return stretchedMasterKey
+	}
+	return ok(stretchedMasterKey.value)
 }
 
-export { deriveInitialKeys, saveCryptInfoInSessionStorage, hashMasterPassword }
+function saveSymmetricKeyInSessionStorage(symmetricKey: SymmetricKey) {
+	sessionStorage.setItem("symmetricKey", symmetricKey.toString())
+}
+
+export {
+	SymmetricKey,
+	deriveInitialKeys,
+	saveSymmetricKeyInSessionStorage,
+	hashMasterPassword,
+	deriveStretchedMasterKey,
+}
 export type { CryptInfo }
