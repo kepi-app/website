@@ -8,9 +8,10 @@ import {
 import { useEffect, useRef } from "react"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
-
 import "./tailwind.css"
 import { ScrollInfoContext, type ScrollInfo } from "./scroll-context"
+import { ClientOnly } from "remix-utils/client-only"
+import { Toaster } from "react-hot-toast"
 
 dayjs.extend(relativeTime)
 
@@ -67,6 +68,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 				<ScrollInfoContext.Provider value={scrollInfo.current}>
 					{children}
 				</ScrollInfoContext.Provider>
+				<ClientOnly>{() => <Toaster />}</ClientOnly>
 				<ScrollRestoration />
 				<Scripts />
 			</body>

@@ -13,7 +13,7 @@ console.log(process.env.NODE_ENV)
 
 const { getSession, commitSession, destroySession } =
 	process.env.NODE_ENV === "development"
-		? createMemorySessionStorage({
+		? createMemorySessionStorage<SessionData>({
 				cookie: {
 					name: "__session",
 					httpOnly: true,

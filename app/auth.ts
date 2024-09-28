@@ -34,10 +34,10 @@ async function authenticate(
 		const result = await fetchNewTokens(refreshToken)
 		if (result.isErr()) {
 			switch (result.error) {
-				case ApiError.Internal:
-					throw redirect("/internal-error")
 				case ApiError.Unauthorized:
 					throw redirect("/login")
+				default:
+					throw redirect("/internal-error")
 			}
 		}
 

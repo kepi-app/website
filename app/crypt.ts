@@ -1,5 +1,7 @@
 import _sodium from "libsodium-wrappers-sumo"
 import argon2 from "argon2-browser/dist/argon2-bundled.min.js"
+import type { Argon2BrowserHashResult } from "argon2-browser"
+import { err, ok, type Result } from "trycat"
 
 const MASTER_KEY_BYTE_LENGTH = 32
 const STRETCHED_MASTER_KEY_BYTE_LENGTH = 64
@@ -56,8 +58,6 @@ async function deriveInitialKeys(
 ): Promise<CryptInfo> {
 	await _sodium.ready
 	const sodium = _sodium
-
-	console.log(sodium)
 
 	const textEncoder = new TextEncoder()
 
@@ -123,9 +123,40 @@ async function deriveInitialKeys(
 	}
 }
 
+async function hashMasterPassword(
+	email: string,
+	password: string,
+): Promise<Result<Argon2BrowserHashResult, unknown>> {
+	const textEncoder = new TextEncoder()
+	const masterKeySalt = textEncoder.encode(email)
+	const masterPasswordHashSalt = textEncoder.encode(password)
+	try {
+		const masterKey = await argon2.hash({
+			pass: password,
+			salt: masterKeySalt,
+			type: argon2.ArgonType.Argon2id,
+			time: ARGON2_ITER_COUNT,
+			mem: ARGON2_MEM_COST_KB,
+			hashLen: MASTER_KEY_BYTE_LENGTH,
+		})
+		const masterPasswordHash = await argon2.hash({
+			pass: masterKey.hash,
+			salt: masterPasswordHashSalt,
+			type: argon2.ArgonType.Argon2id,
+			time: ARGON2_ITER_COUNT,
+			mem: ARGON2_MEM_COST_KB,
+			hashLen: MASTER_KEY_BYTE_LENGTH,
+		})
+
+		return ok(masterPasswordHash)
+	} catch (e) {
+		return err(e)
+	}
+}
+
 function saveCryptInfoInSessionStorage(info: CryptInfo) {
 	sessionStorage.setItem("symmetricKey", info.symmetricKey.toString())
 }
 
-export { deriveInitialKeys, saveCryptInfoInSessionStorage }
+export { deriveInitialKeys, saveCryptInfoInSessionStorage, hashMasterPassword }
 export type { CryptInfo }

@@ -26,6 +26,7 @@
     "libsodium-wrappers-sumo": "^0.7.15",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-hot-toast": "^2.4.1",
     "react-markdown": "^9.0.1",
     "react-remark": "^2.1.0",
     "rehype-highlight": "^7.0.0",
@@ -33,6 +34,7 @@
     "remark-gfm": "^4.0.0",
     "remark-images": "^4.0.0",
     "remark-math": "^6.0.0",
+    "remix-utils": "^7.7.0",
     "trycat": "^0.2.4",
     "zustand": "^5.0.0-rc.2"
   },
