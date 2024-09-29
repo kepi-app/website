@@ -87,13 +87,10 @@ export async function action({ request }: ActionFunctionArgs) {
 			case ApiError.Unauthorized:
 				return redirect("/login")
 
-			case ApiError.Internal:
-			case ApiError.Conflict:
+			default:
 				return json({ error: result.error })
 		}
 	}
 
-	console.log(result.value)
-
-	return redirect(`/blog/${result.value.slug}/dashboard`, { headers })
+	return redirect(`/blogs/${result.value.slug}/dashboard`, { headers })
 }
