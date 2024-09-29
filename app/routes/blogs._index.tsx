@@ -1,4 +1,4 @@
-import { json, type LoaderFunctionArgs } from "@remix-run/node"
+import { json, redirect, type LoaderFunctionArgs } from "@remix-run/node"
 import { useLoaderData } from "@remix-run/react"
 import { authenticate } from "~/auth"
 import type { Blog } from "~/blog/blog"
@@ -16,6 +16,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	if (result.isErr()) {
 		return json({ error: ApiError.Internal }, { status: 500 })
 	}
+
+	const blogs = result.value
+
+	if (blogs.length <= 0) {
+		return redirect("/blogs/new")
+	}
+
 	return json(result.value)
 }
 
