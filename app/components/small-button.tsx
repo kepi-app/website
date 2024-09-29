@@ -11,7 +11,7 @@ function SmallButton({
 	return (
 		<button
 			className={clsx(
-				"text-sm rounded bg-zinc-300 dark:bg-zinc-700 dark:border dark:border-zinc-600 py-0.5 px-2",
+				"text-sm rounded bg-zinc-300 border border-zinc-400 dark:bg-zinc-700 dark:border dark:border-zinc-600 px-2",
 				className,
 			)}
 			{...props}
