@@ -12,15 +12,18 @@ import { Button } from "~/components/button"
 import { Logo } from "~/components/logo"
 import {
 	SymmetricKey,
+	decrypt,
 	deriveStretchedMasterKey,
 	hashMasterPassword,
 	saveSymmetricKeyInSessionStorage,
+	type Base64EncodedCipher,
 } from "~/crypt"
 import { fetchApi } from "~/fetch-api"
 import { ApiError } from "~/error"
 import { commitSession, getSession } from "~/sessions"
 import toast from "react-hot-toast"
 import { trys } from "trycat"
+import { saveEmail, saveProtectedSymmetricKey } from "~/local-storage"
 
 interface LoginResponse {
 	accessToken: string
@@ -62,11 +65,7 @@ export default function LoginPage() {
 						break
 				}
 			} else {
-				decryptSymmetricKey(
-					fetcher.data.protectedSymmetricKey,
-					fetcher.data.authTag,
-					fetcher.data.iv,
-				)
+				onLoginSuccessful(fetcher.data)
 			}
 		}
 	}, [fetcher.data])
@@ -119,6 +118,37 @@ export default function LoginPage() {
 		form.delete("password")
 
 		fetcher.submit(form, { method: "POST" })
+	}
+
+	async function onLoginSuccessful(protectedSymmetricKey: Base64EncodedCipher) {
+		const submittedForm = fetcher.formData
+		const email = submittedForm?.get("email")
+		if (!email || typeof email !== "string") {
+			setIsSubmitting(false)
+			toast.error("an error occurred on our end. please try again later.")
+			return
+		}
+
+		const stretchedMasterKeyBytes = stretchedMasterKey.current
+		if (!stretchedMasterKeyBytes) {
+			setIsSubmitting(false)
+			toast.error("an error occurred on our end. please try again later.")
+			return
+		}
+
+		const symmetricKey = await decrypt(
+			protectedSymmetricKey,
+			stretchedMasterKeyBytes,
+		)
+		if (symmetricKey.isErr()) {
+			setIsSubmitting(false)
+			toast.error("an error occurred on our end. please try again later.")
+			return
+		}
+
+		saveSymmetricKeyInSessionStorage(new SymmetricKey(symmetricKey.value))
+		saveEmail(email)
+		saveProtectedSymmetricKey(protectedSymmetricKey)
 	}
 
 	async function decryptSymmetricKey(
@@ -236,16 +266,15 @@ export async function action({ request }: ActionFunctionArgs) {
 	session.set("expiresAtUnixMs", response.expiresAtUnixMs)
 	session.flash("isLoggingIn", true)
 
-	return json(
-		{
-			protectedSymmetricKey: response.protectedSymmetricKey,
-			authTag: response.authTag,
-			iv: response.iv,
+	const cipher: Base64EncodedCipher = {
+		text: response.protectedSymmetricKey,
+		authTag: response.authTag,
+		iv: response.iv,
+	}
+
+	return json(cipher, {
+		headers: {
+			"Set-Cookie": await commitSession(session),
 		},
-		{
-			headers: {
-				"Set-Cookie": await commitSession(session),
-			},
-		},
-	)
+	})
 }

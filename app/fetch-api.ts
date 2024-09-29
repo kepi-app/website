@@ -15,27 +15,24 @@ async function fetchApi<T = undefined>(
 	endpoint: Endpoint,
 	init?: RequestInit & { redirectToLogin?: boolean },
 ): Promise<Result<T, ApiError>> {
-	try {
-		const res = await fetch(`${process.env.API_URL}${endpoint}`, init)
-		switch (res.status) {
-			case 401:
-				if (init?.redirectToLogin) {
-					throw redirect("/login")
-				}
-				return err(ApiError.Unauthorized)
-			case 409:
-				return err(ApiError.Conflict)
-			case 200: {
-				const json: T = await res.json()
-				console.log("json", json)
-				return ok(json)
+	const res = await fetch(`${process.env.API_URL}${endpoint}`, init)
+	console.log(res.status)
+	switch (res.status) {
+		case 401:
+			if (init?.redirectToLogin ?? true) {
+				throw redirect("/login")
 			}
-
-			default:
-				return err(ApiError.Internal)
+			return err(ApiError.Unauthorized)
+		case 409:
+			return err(ApiError.Conflict)
+		case 200: {
+			const json: T = await res.json()
+			console.log("json", json)
+			return ok(json)
 		}
-	} catch {
-		return err(ApiError.Internal)
+
+		default:
+			return err(ApiError.Internal)
 	}
 }
 

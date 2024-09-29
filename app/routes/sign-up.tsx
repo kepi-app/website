@@ -9,6 +9,7 @@ import {
 	deriveInitialKeys,
 	saveSymmetricKeyInSessionStorage,
 } from "~/crypt"
+import { saveEmail, saveProtectedSymmetricKey } from "~/local-storage"
 import { commitSession, getSession } from "~/sessions"
 
 interface SignUpResponse {
@@ -17,21 +18,19 @@ interface SignUpResponse {
 	expiresAtUnixMs: number
 }
 
-export default function LoginPage() {
+export default function SignUpPage() {
 	const emailInputId = useId()
 	const passwordInputId = useId()
 	const fetcher = useFetcher<typeof action>()
 	const derivedCryptInfo = useRef<CryptInfo | null>(null)
+	const submittedFormRef = useRef<FormData | null>(null)
 	const navigate = useNavigate()
 
 	useEffect(() => {
 		if (fetcher.data && derivedCryptInfo.current) {
-			saveSymmetricKeyInSessionStorage(derivedCryptInfo.current.symmetricKey)
-			navigate("/blog/new", {
-				replace: true,
-			})
+			onSignUpSuccess()
 		}
-	}, [fetcher.data, navigate])
+	}, [fetcher.data])
 
 	async function submitSignUpForm(event: React.FormEvent<HTMLFormElement>) {
 		const formData = new FormData(event.currentTarget)
@@ -76,11 +75,38 @@ export default function LoginPage() {
 			sodium.to_base64(info.authTag, sodium.base64_variants.ORIGINAL),
 		)
 
-		console.log(signUpFormData)
-
 		fetcher.submit(signUpFormData, {
 			method: "POST",
 			encType: "multipart/form-data",
+		})
+
+		submittedFormRef.current = formData
+	}
+
+	function onSignUpSuccess() {
+		const submittedForm = submittedFormRef.current
+		if (!submittedForm || !derivedCryptInfo.current) {
+			return
+		}
+
+		const email = submittedForm.get("email") as string
+		const protectedSymmetricKey = submittedForm.get(
+			"protectedSymmetricKey",
+		) as string
+		const authTag = submittedForm.get("authTag") as string
+		const iv = submittedForm.get("iv") as string
+
+		submittedFormRef.current = null
+
+		saveSymmetricKeyInSessionStorage(derivedCryptInfo.current.symmetricKey)
+		saveEmail(email)
+		saveProtectedSymmetricKey({
+			text: protectedSymmetricKey,
+			authTag,
+			iv,
+		})
+		navigate("/blogs/new", {
+			replace: true,
 		})
 	}
 

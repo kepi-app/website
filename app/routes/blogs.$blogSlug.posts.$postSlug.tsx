@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node"
-import { json, useFetcher, useLoaderData } from "@remix-run/react"
+import { json, useFetcher, useLoaderData, useNavigate } from "@remix-run/react"
 import dayjs from "dayjs"
 import { useEffect, useRef } from "react"
 import { MainEditor, type MainEditorRef } from "~/blog-post-editor/main-editor"
@@ -18,11 +18,14 @@ import { getSession } from "~/sessions"
 import { authenticate } from "~/auth"
 import { fetchApi } from "~/fetch-api"
 import { ApiError } from "~/error"
+import { encrypt, type Base64EncodedCipher } from "~/crypt"
+import { useKeyStore } from "~/keystore"
 
 interface PostUpdate {
 	title?: string
 	description?: string
 	content?: string
+	contentCipher?: Base64EncodedCipher
 }
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
@@ -47,7 +50,7 @@ export default function Page() {
 	}
 	return (
 		<EditorStoreProvider post={postData}>
-			<EditBlogPostPage />
+			<WaitForDecryption />
 		</EditorStoreProvider>
 	)
 }
@@ -62,6 +65,18 @@ function ErrorPage() {
 	)
 }
 
+function WaitForDecryption() {
+	const isDecrypting = useEditorStore((state) => state.isDecrypting)
+	if (isDecrypting) {
+		return (
+			<main className="w-full h-screen flex items-center justify-center">
+				<p className="animate-pulse">Decrypting post</p>
+			</main>
+		)
+	}
+	return <EditBlogPostPage />
+}
+
 function EditBlogPostPage() {
 	const postUpdate = useRef<PostUpdate>({})
 	const autoSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -72,7 +87,10 @@ function EditBlogPostPage() {
 	const insertUploadedImages = useEditorStore(
 		(state) => state.insertUploadedImages,
 	)
+	const isDecrypting = useEditorStore((state) => state.isDecrypting)
 	const editorStore = useEditorStoreContext()
+	const keyStore = useKeyStore()
+	const navigate = useNavigate()
 
 	const fetcher = useFetcher()
 	const uploadFetcher = useFetcher<MultiUploadResult>()
@@ -195,14 +213,35 @@ function EditBlogPostPage() {
 	}, [])
 
 	function autoSaveAfterTimeout() {
+		console.log("is decrypting", isDecrypting)
 		if (autoSaveTimeout.current) {
 			clearTimeout(autoSaveTimeout.current)
 		}
 		autoSaveTimeout.current = setTimeout(savePost, 2000)
 	}
 
-	function savePost() {
-		fetcher.submit(postUpdate.current as Record<string, string>, {
+	async function savePost() {
+		if (postUpdate.current.content) {
+			const key = await keyStore.getKey()
+			if (key.isErr()) {
+				navigate("/login", { replace: true })
+				return
+			}
+
+			const encResult = await encrypt(postUpdate.current.content, key.value)
+			if (encResult.isErr()) {
+				console.error(encResult.error)
+				return
+			}
+
+			postUpdate.current.contentCipher = encResult.value
+			postUpdate.current.content = undefined
+		}
+
+		console.log(postUpdate.current)
+
+		// @ts-ignore you are fking retarded
+		fetcher.submit(postUpdate.current, {
 			method: "PATCH",
 			encType: "application/json",
 		})
@@ -221,13 +260,22 @@ function EditBlogPostPage() {
 }
 
 export async function action({ params, request }: ActionFunctionArgs) {
+	const session = await getSession(request.headers.get("Cookie"))
+	const headers = new Headers()
+	const accessToken = await authenticate(request, session, headers)
+
 	const updateJson = await request.json()
-	await fetch(
-		`${process.env.API_URL}/blog/${params.blogSlug}/post/${params.postSlug}`,
+	const updated = await fetchApi<Base64EncodedCipher>(
+		`/blogs/${params.blogSlug}/posts/${params.postSlug}`,
 		{
 			method: "PATCH",
 			body: JSON.stringify(updateJson),
+			headers: { Authorization: `Bearer ${accessToken}` },
 		},
 	)
-	return json({})
+	if (updated.isErr()) {
+		return json({ error: ApiError.Internal }, { status: 500 })
+	}
+
+	return json(updated.value)
 }

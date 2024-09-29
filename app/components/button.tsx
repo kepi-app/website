@@ -46,7 +46,8 @@ function Button({
 			<button
 				ref={btnRef}
 				className={clsx(
-					"h-full w-full rounded-full border-t border-t-white text-sm bg-neutral-100 bg-opacity-70 backdrop-blur-lg px-4 shadow-lg flex items-center justify-center dark:bg-neutral-100 dark:bg-opacity-20 dark:border-opacity-20",
+					"h-full w-full rounded-full text-sm px-4 flex items-center justify-center border-t border-t-white bg-neutral-100 bg-opacity-70 backdrop-blur-lg shadow-lg  dark:bg-neutral-100 dark:bg-opacity-20 dark:border-opacity-20",
+					{ "opacity-20": props.disabled },
 					buttonClassName,
 				)}
 				onMouseLeave={() => {

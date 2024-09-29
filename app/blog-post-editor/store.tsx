@@ -1,9 +1,12 @@
-import React, { useContext } from "react"
+import { useNavigate } from "@remix-run/react"
+import React, { useContext, useEffect } from "react"
 import { useRef } from "react"
 import { create, useStore } from "zustand"
 import { subscribeWithSelector } from "zustand/middleware"
 import type { BlogPost } from "~/blog/post"
 import type { MultiUploadResult } from "~/blog/upload"
+import { SymmetricKey, decrypt } from "~/crypt"
+import { useKeyStore } from "~/keystore"
 
 interface EditorState {
 	isPostDataLoaded: boolean
@@ -13,12 +16,13 @@ interface EditorState {
 	statusMessage: string
 	isPreviewing: boolean
 	isFocused: boolean
+	isDecrypting: boolean
 	canUnfocus: boolean
 	pendingFiles: File[]
 	textSelectionStart: number
 	textSelectionEnd: number
 
-	loadPostIntoStore(postData: BlogPost): void
+	decryptPost(post: BlogPost, key: SymmetricKey): Promise<void>
 	setTitle(title: string): void
 	setDescription(description: string): void
 	setContent(content: string): void
@@ -36,14 +40,15 @@ type EditorStore = ReturnType<typeof createEditorStore>
 
 const EditorStoreContext = React.createContext<EditorStore | null>(null)
 
-function createEditorStore(postData: BlogPost) {
+function createEditorStore() {
 	return create<EditorState>()(
 		subscribeWithSelector((set, get) => ({
 			isPostDataLoaded: false,
-			title: postData.title,
-			description: postData.description,
-			content: postData.content,
+			title: "",
+			description: "",
+			content: "",
 			statusMessage: "",
+			isDecrypting: false,
 			isPreviewing: false,
 			isFocused: false,
 			canUnfocus: true,
@@ -51,14 +56,37 @@ function createEditorStore(postData: BlogPost) {
 			textSelectionStart: 0,
 			textSelectionEnd: 0,
 
-			loadPostIntoStore: (postData) =>
+			decryptPost: async (post: BlogPost, key: SymmetricKey) => {
+				set((state) => ({ ...state, isDecrypting: true }))
+
+				if (!post.contentCipher) {
+					set((state) => ({
+						...state,
+						isDecrypting: false,
+						title: post.title,
+						description: post.description,
+					}))
+					return
+				}
+
+				const decryptResult = await decrypt(post.contentCipher, key)
+				if (decryptResult.isErr()) {
+					console.error(decryptResult.error)
+					// TODO: handle decrypt error
+					return
+				}
+
+				const decoder = new TextDecoder()
+
 				set((state) => ({
 					...state,
-					isPostDataLoaded: true,
-					title: postData.title,
-					description: postData.description,
-					content: postData.content,
-				})),
+					isDecrypting: false,
+					title: post.title,
+					description: post.description,
+					content: decoder.decode(decryptResult.value),
+				}))
+			},
+
 			setTitle: (title) => set((state) => ({ ...state, title })),
 			setDescription: (description) =>
 				set((state) => ({ ...state, description })),
@@ -103,9 +131,26 @@ function EditorStoreProvider({
 	post,
 }: React.PropsWithChildren<{ post: BlogPost }>) {
 	const storeRef = useRef<EditorStore>()
+	const keyStore = useKeyStore()
+	const navigate = useNavigate()
+
 	if (!storeRef.current) {
-		storeRef.current = createEditorStore(post)
+		storeRef.current = createEditorStore()
 	}
+
+	useEffect(() => {
+		async function decryptPost() {
+			const key = await keyStore.getKey()
+			if (key.isErr()) {
+				navigate("/login", { replace: true })
+			} else {
+				// biome-ignore lint/style/noNonNullAssertion: <explanation>
+				storeRef.current!.getState().decryptPost(post, key.value)
+			}
+		}
+		decryptPost()
+	}, [navigate, keyStore.getKey, post])
+
 	return (
 		<EditorStoreContext.Provider value={storeRef.current}>
 			{children}

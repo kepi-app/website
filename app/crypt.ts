@@ -1,7 +1,9 @@
-import _sodium from "libsodium-wrappers-sumo"
+import _sodium, { type CryptoBox } from "libsodium-wrappers-sumo"
 import argon2 from "argon2-browser/dist/argon2-bundled.min.js"
 import type { Argon2BrowserHashResult } from "argon2-browser"
-import { err, ok, tryp, type Result } from "trycat"
+import { err, ok, tryp, trys, type Result } from "trycat"
+import { useNavigate, type Link } from "@remix-run/react"
+import { useEffect, useRef } from "react"
 
 const MASTER_KEY_BYTE_LENGTH = 32
 const STRETCHED_MASTER_KEY_BYTE_LENGTH = 64
@@ -55,6 +57,12 @@ interface CryptInfo {
 interface HashResult {
 	masterKey: Argon2BrowserHashResult
 	masterPasswordHash: Argon2BrowserHashResult
+}
+
+interface Base64EncodedCipher {
+	text: string
+	authTag: string
+	iv: string
 }
 
 async function deriveInitialKeys(
@@ -161,6 +169,24 @@ async function hashMasterPassword(
 	}
 }
 
+async function deriveMasterKey(
+	email: string,
+	password: string,
+): Promise<Result<Argon2BrowserHashResult, unknown>> {
+	const textEncoder = new TextEncoder()
+	const masterKeySalt = textEncoder.encode(email)
+	return tryp(
+		argon2.hash({
+			pass: password,
+			salt: masterKeySalt,
+			type: argon2.ArgonType.Argon2id,
+			time: ARGON2_ITER_COUNT,
+			mem: ARGON2_MEM_COST_KB,
+			hashLen: MASTER_KEY_BYTE_LENGTH,
+		}),
+	)
+}
+
 async function deriveStretchedMasterKey(
 	masterKeyBytes: Uint8Array,
 ): Promise<Result<SymmetricKey, unknown>> {
@@ -192,6 +218,81 @@ async function deriveStretchedMasterKey(
 	return ok(stretchedMasterKey.value)
 }
 
+async function encrypt(
+	content: string,
+	symmetricKey: SymmetricKey,
+): Promise<Result<Base64EncodedCipher, unknown>> {
+	await _sodium.ready
+	const sodium = _sodium
+
+	const iv = crypto.getRandomValues(new Uint8Array(IV_BYTE_LENGTH))
+
+	const encResult = await tryp<CryptoBox>(
+		new Promise((resolve, reject) => {
+			try {
+				resolve(
+					sodium.crypto_aead_xchacha20poly1305_ietf_encrypt_detached(
+						content,
+						null,
+						null,
+						iv,
+						symmetricKey.encryptionKey,
+						"uint8array",
+					),
+				)
+			} catch (e) {
+				reject(e)
+			}
+		}),
+	)
+
+	if (encResult.isErr()) {
+		return encResult
+	}
+
+	return ok({
+		text: sodium.to_base64(
+			encResult.value.ciphertext,
+			sodium.base64_variants.ORIGINAL,
+		),
+		iv: sodium.to_base64(iv, sodium.base64_variants.ORIGINAL),
+		authTag: sodium.to_base64(
+			encResult.value.mac,
+			sodium.base64_variants.ORIGINAL,
+		),
+	})
+}
+
+async function decrypt(
+	cipher: Base64EncodedCipher,
+	key: SymmetricKey,
+): Promise<Result<Uint8Array, unknown>> {
+	await _sodium.ready
+	const sodium = _sodium
+
+	const authTagBytes = sodium.from_base64(
+		cipher.authTag,
+		sodium.base64_variants.ORIGINAL,
+	)
+	const ivBytes = sodium.from_base64(cipher.iv, sodium.base64_variants.ORIGINAL)
+	const cipherBytes = sodium.from_base64(
+		cipher.text,
+		sodium.base64_variants.ORIGINAL,
+	)
+
+	return trys(() =>
+		sodium.crypto_aead_xchacha20poly1305_ietf_decrypt_detached(
+			null,
+			cipherBytes,
+			authTagBytes,
+			"",
+			ivBytes,
+			key.encryptionKey,
+			"uint8array",
+		),
+	)
+}
+
 function saveSymmetricKeyInSessionStorage(symmetricKey: SymmetricKey) {
 	sessionStorage.setItem("symmetricKey", symmetricKey.toString())
 }
@@ -199,8 +300,11 @@ function saveSymmetricKeyInSessionStorage(symmetricKey: SymmetricKey) {
 export {
 	SymmetricKey,
 	deriveInitialKeys,
+	deriveMasterKey,
 	saveSymmetricKeyInSessionStorage,
 	hashMasterPassword,
 	deriveStretchedMasterKey,
+	encrypt,
+	decrypt,
 }
-export type { CryptInfo }
+export type { CryptInfo, Base64EncodedCipher }
