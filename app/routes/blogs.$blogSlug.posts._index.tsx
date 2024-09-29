@@ -125,7 +125,7 @@ export function NewPostInput({ onCancel }: { onCancel: () => void }) {
 			</div>
 			<div className="flex flex-row w-full justify-end space-x-2">
 				<SmallButton
-					className="text-rose-200"
+					className="text-rose-500 dark:text-rose-200"
 					onClick={() => {
 						onCancel()
 					}}
