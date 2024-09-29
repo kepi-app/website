@@ -26,7 +26,7 @@ function ActionButtons() {
 	return (
 		<div className="w-full lg:max-w-prose h-10 my-4 flex justify-between items-center space-x-1 rounded-full">
 			<BackPlate>
-				<div className="h-full bg-white bg-opacity-40 dark:bg-opacity-30 flex flex-row rounded-full p-0.5">
+				<div className="h-full bg-white shadow-lg bg-opacity-40 dark:bg-opacity-30 flex flex-row rounded-full p-0.5">
 					<input
 						ref={imageFileInputRef}
 						type="file"
