@@ -43,8 +43,6 @@ function PostImage(
 					return
 				}
 
-				console.log(mimeTypeBase64)
-
 				const buf = await res.arrayBuffer()
 				const fileCipher = rawCipherFromArrayBuffer(buf)
 				const mimeTypeCipher = await rawCipherFromBase64(mimeTypeBase64)

@@ -5,7 +5,12 @@ import { create, useStore } from "zustand"
 import { subscribeWithSelector } from "zustand/middleware"
 import type { BlogPost } from "~/blog/post"
 import type { UploadResult } from "~/blog/upload"
-import { type SymmetricKey, decrypt } from "~/crypt"
+import {
+	type SymmetricKey,
+	decrypt,
+	rawCipherFromBase64,
+	decryptRaw,
+} from "~/crypt"
 import { useKeyStore } from "~/keystore"
 
 interface EditorState {
@@ -59,7 +64,7 @@ function createEditorStore() {
 			decryptPost: async (post: BlogPost, key: SymmetricKey) => {
 				set((state) => ({ ...state, isDecrypting: true }))
 
-				if (!post.contentCipher) {
+				if (!post.content) {
 					set((state) => ({
 						...state,
 						isDecrypting: false,
@@ -69,7 +74,8 @@ function createEditorStore() {
 					return
 				}
 
-				const decryptResult = await decrypt(post.contentCipher, key)
+				const contentCipher = await rawCipherFromBase64(post.content)
+				const decryptResult = await decryptRaw(contentCipher, key)
 				if (decryptResult.isErr()) {
 					console.error(decryptResult.error)
 					// TODO: handle decrypt error

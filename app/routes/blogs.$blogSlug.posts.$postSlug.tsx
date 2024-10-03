@@ -18,7 +18,12 @@ import { getSession } from "~/sessions"
 import { authenticate } from "~/auth"
 import { fetchApi } from "~/fetch-api"
 import { ApiError } from "~/error"
-import { encrypt, encryptFile, type Base64EncodedCipher } from "~/crypt"
+import {
+	encrypt,
+	encryptFile,
+	encryptToRaw,
+	type Base64EncodedCipher,
+} from "~/crypt"
 import { useKeyStore } from "~/keystore"
 
 interface PostUpdate {
@@ -257,7 +262,6 @@ function EditBlogPostPage() {
 	}
 
 	function autoSaveAfterTimeout() {
-		console.log("is decrypting", isDecrypting)
 		if (autoSaveTimeout.current) {
 			clearTimeout(autoSaveTimeout.current)
 		}
@@ -265,6 +269,8 @@ function EditBlogPostPage() {
 	}
 
 	async function savePost() {
+		const updateForm = new FormData()
+
 		if (postUpdate.current.content) {
 			const key = await keyStore.getKey()
 			if (key.isErr()) {
@@ -272,20 +278,35 @@ function EditBlogPostPage() {
 				return
 			}
 
-			const encResult = await encrypt(postUpdate.current.content, key.value)
+			const encResult = await encryptToRaw(
+				postUpdate.current.content,
+				key.value,
+			)
 			if (encResult.isErr()) {
 				console.error(encResult.error)
 				return
 			}
 
-			postUpdate.current.contentCipher = encResult.value
-			postUpdate.current.content = undefined
+			const { authTag, iv, text } = encResult.value
+
+			updateForm.set(
+				"content",
+				new Blob([authTag, iv, text], { type: "application/octet-stream" }),
+			)
+		}
+
+		if (postUpdate.current.title) {
+			updateForm.set("title", postUpdate.current.title)
+		}
+
+		if (postUpdate.current.description) {
+			updateForm.set("description", postUpdate.current.description)
 		}
 
 		// @ts-ignore
-		fetcher.submit(postUpdate.current, {
+		fetcher.submit(updateForm, {
 			method: "PATCH",
-			encType: "application/json",
+			encType: "multipart/form-data",
 		})
 		postUpdate.current = {}
 		autoSaveTimeout.current = null
@@ -306,12 +327,12 @@ export async function action({ params, request }: ActionFunctionArgs) {
 	const headers = new Headers()
 	const accessToken = await authenticate(request, session, headers)
 
-	const updateJson = await request.json()
+	const updateForm = await request.formData()
 	const updated = await fetchApi<Base64EncodedCipher>(
 		`/blogs/${params.blogSlug}/posts/${params.postSlug}`,
 		{
 			method: "PATCH",
-			body: JSON.stringify(updateJson),
+			body: updateForm,
 			headers: { Authorization: `Bearer ${accessToken}` },
 		},
 	)
