@@ -1,6 +1,7 @@
 import { useFetcher, useParams } from "@remix-run/react"
 import {
 	useEffect,
+	useState,
 	type DetailedHTMLProps,
 	type ImgHTMLAttributes,
 } from "react"
@@ -22,6 +23,7 @@ function PostImage(
 ) {
 	const keyStore = useKeyStore()
 	const params = useParams()
+	const [url, setUrl] = useState<string | null>(null)
 
 	useEffect(() => {
 		async function decryptImage() {
@@ -56,7 +58,7 @@ function PostImage(
 				const url = URL.createObjectURL(
 					new Blob([fileBytes.buffer], { type: mimeType }),
 				)
-				console.log(url)
+				setUrl(url)
 			} catch (err) {
 				console.error(err)
 			}
@@ -64,7 +66,13 @@ function PostImage(
 		decryptImage()
 	}, [keyStore.getKey, props.src, params.postSlug])
 
-	return null
+	if (!url) {
+		// biome-ignore lint/a11y/useAltText: <explanation>
+		return <img {...props} />
+	}
+
+	// biome-ignore lint/a11y/useAltText: <explanation>
+	return <img {...props} src={url} />
 }
 
 export { PostImage }

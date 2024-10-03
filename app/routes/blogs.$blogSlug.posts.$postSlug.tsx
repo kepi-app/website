@@ -13,7 +13,7 @@ import type { BlogPost } from "~/blog/post"
 import "katex/dist/katex.min.css"
 import "highlightjs/styles/atom-one-dark.css"
 import { BottomArea } from "~/blog-post-editor/bottom-area"
-import type { MultiUploadResult } from "~/blog/upload"
+import type { MultiUploadResult, UploadResult } from "~/blog/upload"
 import { getSession } from "~/sessions"
 import { authenticate } from "~/auth"
 import { fetchApi } from "~/fetch-api"
@@ -97,7 +97,7 @@ function EditBlogPostPage() {
 	const navigate = useNavigate()
 
 	const fetcher = useFetcher()
-	const uploadFetcher = useFetcher<MultiUploadResult>()
+	const uploadFetcher = useFetcher<UploadResult[]>()
 
 	useEffect(
 		function unfocusOnMouseMove() {
