@@ -59,7 +59,7 @@ export default function BlogPostDashboard() {
 							<Anchor href={`/blogs/${params.blogSlug}/posts/${post.slug}`}>
 								{post.title}
 							</Anchor>
-							<PostTime date={new Date(post.publishDate)} />
+							<PostTime date={new Date(post.creationDate)} />
 						</li>
 					))}
 				</ul>
