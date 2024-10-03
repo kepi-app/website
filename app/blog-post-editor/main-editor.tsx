@@ -1,12 +1,13 @@
 import clsx from "clsx"
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react"
 import Markdown from "react-markdown"
 import rehypeHighlight from "rehype-highlight"
 import rehypeKatex from "rehype-katex"
 import remarkGfm from "remark-gfm"
 import remarkMath from "remark-math"
 import { AutoResizingTextArea } from "~/components/auto-resizing-textarea"
+import { PostImage } from "./post-image"
 import { useEditorStore } from "./store"
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react"
 
 interface MainEditorRef {
 	contentInput: HTMLTextAreaElement | null
@@ -75,6 +76,7 @@ const ContentArea = forwardRef<HTMLTextAreaElement | null>((_, ref) => {
 					rehypePlugins={[rehypeKatex, rehypeHighlight]}
 					components={{
 						pre: (props) => <pre {...props} className="hljs" />,
+						img: PostImage,
 					}}
 				>
 					{postContent}

@@ -108,7 +108,12 @@ function useKeyStore(): KeyStore {
 
 		const keyBase64 = sessionStorage.getItem("symmetricKey")
 		if (keyBase64) {
-			keyRef.current = SymmetricKey.fromBase64(keyBase64)
+			pendingKeyPromise.current = SymmetricKey.fromBase64(keyBase64).then(
+				(key) => {
+					keyRef.current = key
+					return ok(key)
+				},
+			)
 		} else {
 			getKey()
 		}

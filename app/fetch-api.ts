@@ -6,6 +6,7 @@ type Endpoint =
 	| "/blogs"
 	| `/blogs/${string}`
 	| `/blogs/${string}/posts`
+	| `/blogs/${string}/posts/${string}/files/${string}`
 	| `/blogs/${string}`
 	| "/sign-up"
 	| "/auth/token"
@@ -27,7 +28,6 @@ async function fetchApi<T = undefined>(
 			return err(ApiError.Conflict)
 		case 200: {
 			const json: T = await res.json()
-			console.log("json", json)
 			return ok(json)
 		}
 
@@ -36,4 +36,26 @@ async function fetchApi<T = undefined>(
 	}
 }
 
-export { fetchApi }
+async function fetchApiRaw(
+	endpoint: Endpoint,
+	init?: RequestInit & { redirectToLogin?: boolean },
+): Promise<Result<Response, ApiError>> {
+	const res = await fetch(`${process.env.API_URL}${endpoint}`, init)
+	console.log(res.status)
+	switch (res.status) {
+		case 401:
+			if (init?.redirectToLogin ?? true) {
+				throw redirect("/login")
+			}
+			return err(ApiError.Unauthorized)
+		case 409:
+			return err(ApiError.Conflict)
+		case 200: {
+			return ok(res)
+		}
+		default:
+			return err(ApiError.Internal)
+	}
+}
+
+export { fetchApi, fetchApiRaw }

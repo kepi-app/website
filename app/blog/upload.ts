@@ -1,9 +1,9 @@
 interface UploadResult {
-	url: string
+	fileId: string
 }
 
 interface MultiUploadResult {
 	results: UploadResult[]
 }
 
-export { UploadResult, MultiUploadResult }
+export type { UploadResult, MultiUploadResult }

@@ -18,7 +18,7 @@ import { getSession } from "~/sessions"
 import { authenticate } from "~/auth"
 import { fetchApi } from "~/fetch-api"
 import { ApiError } from "~/error"
-import { encrypt, type Base64EncodedCipher } from "~/crypt"
+import { encrypt, encryptFile, type Base64EncodedCipher } from "~/crypt"
 import { useKeyStore } from "~/keystore"
 
 interface PostUpdate {
@@ -41,6 +41,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		return json({ error: ApiError.Internal }, { status: 500 })
 	}
 	return json(result.value)
+}
+
+export function shouldRevalidate() {
+	return false
 }
 
 export default function Page() {
@@ -147,7 +151,7 @@ function EditBlogPostPage() {
 		}
 
 		insertUploadedImages(uploadFetcher.data, contentInput.selectionEnd)
-	}, [uploadFetcher.data])
+	}, [uploadFetcher.data, insertUploadedImages])
 
 	useEffect(
 		function autoSaveOnContentChange() {
@@ -185,24 +189,13 @@ function EditBlogPostPage() {
 		const unsub = editorStore.subscribe(
 			(state) => state.pendingFiles,
 			(files) => {
-				if (files.length === 0) {
-					return
-				}
-				const form = new FormData()
-				for (const file of files) {
-					form.append("images", file)
-				}
-				uploadFetcher.submit(form, {
-					encType: "multipart/form-data",
-					method: "POST",
-					action: "./image",
-				})
+				uploadFiles(files)
 			},
 		)
 		return () => {
 			unsub()
 		}
-	}, [uploadFetcher.submit, editorStore.subscribe])
+	}, [editorStore.subscribe])
 
 	useEffect(() => {
 		return () => {
@@ -211,6 +204,57 @@ function EditBlogPostPage() {
 			}
 		}
 	}, [])
+
+	async function uploadFiles(files: File[]) {
+		if (files.length === 0) {
+			return
+		}
+
+		const key = await keyStore.getKey()
+		if (key.isErr()) {
+			// TODO: handle error
+			return
+		}
+
+		const promises: Promise<void>[] = []
+		const formData = new FormData()
+		for (const file of files) {
+			promises.push(
+				encryptFile(file, key.value).then((encResult) => {
+					if (encResult.isErr()) {
+						// TODO: handle encryption failure
+						return
+					}
+
+					const { fileCipher, mimeTypeCipher } = encResult.value
+
+					formData.append(
+						"files",
+						new Blob([fileCipher.authTag, fileCipher.iv, fileCipher.text], {
+							type: "application/octet-stream",
+						}),
+					)
+					formData.append(
+						"mimeTypes",
+						new Blob(
+							[mimeTypeCipher.authTag, mimeTypeCipher.iv, mimeTypeCipher.text],
+							{
+								type: "application/octet-stream",
+							},
+						),
+					)
+				}),
+			)
+		}
+
+		await Promise.all(promises)
+
+		uploadFetcher.submit(formData, {
+			encType: "multipart/form-data",
+			method: "POST",
+			action: "./files",
+		})
+	}
 
 	function autoSaveAfterTimeout() {
 		console.log("is decrypting", isDecrypting)
@@ -238,9 +282,7 @@ function EditBlogPostPage() {
 			postUpdate.current.content = undefined
 		}
 
-		console.log(postUpdate.current)
-
-		// @ts-ignore you are fking retarded
+		// @ts-ignore
 		fetcher.submit(postUpdate.current, {
 			method: "PATCH",
 			encType: "application/json",

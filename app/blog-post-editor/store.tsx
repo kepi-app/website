@@ -4,8 +4,8 @@ import { useRef } from "react"
 import { create, useStore } from "zustand"
 import { subscribeWithSelector } from "zustand/middleware"
 import type { BlogPost } from "~/blog/post"
-import type { MultiUploadResult } from "~/blog/upload"
-import { SymmetricKey, decrypt } from "~/crypt"
+import type { UploadResult } from "~/blog/upload"
+import { type SymmetricKey, decrypt } from "~/crypt"
 import { useKeyStore } from "~/keystore"
 
 interface EditorState {
@@ -33,7 +33,7 @@ interface EditorState {
 	addPendingFiles(files: FileList): void
 	clearPendingFiles(): void
 	setCurrentTextSelection({ start, end }: { start: number; end: number }): void
-	insertUploadedImages(images: MultiUploadResult, offset: number): void
+	insertUploadedImages(images: UploadResult[], offset: number): void
 }
 
 type EditorStore = ReturnType<typeof createEditorStore>
@@ -110,9 +110,10 @@ function createEditorStore() {
 					textSelectionEnd: end,
 				})),
 			insertUploadedImages: (images, offset) => {
-				const statements = images.results.map(
-					({ url }) => `![INSERT CAPTION](${url})`,
+				const statements = images.map(
+					({ fileId }) => `![INSERT CAPTION](./files/${fileId})`,
 				)
+				console.log(statements)
 				const currentContent = get().content
 				return set((state) => ({
 					...state,
