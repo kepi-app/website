@@ -1,6 +1,6 @@
 import clsx from "clsx"
+import { ProgressiveBlurBackground } from "~/components/progressive-blur-background"
 import { ActionButtons } from "./action-buttons"
-import { ProgressiveBlurBackground } from "./progressive-blur-background"
 import { useEditorStore } from "./store"
 import { UploadPreviews } from "./upload-previews"
 

@@ -21,7 +21,7 @@ export default function BlogDashboard() {
 			<h1 className="text-4xl mb-4 mt-8">edit</h1>
 			<ul className="space-y-2">
 				<li>
-					<Anchor>home page</Anchor>
+					<Anchor href={`/blogs/${params.blogSlug}/home`}>home page</Anchor>
 				</li>
 				<li>
 					<Anchor href={`/blogs/${params.blogSlug}/posts`}>posts</Anchor>

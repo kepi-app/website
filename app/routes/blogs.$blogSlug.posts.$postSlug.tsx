@@ -13,13 +13,12 @@ import type { BlogPost } from "~/blog/post"
 import "katex/dist/katex.min.css"
 import "highlightjs/styles/atom-one-dark.css"
 import { BottomArea } from "~/blog-post-editor/bottom-area"
-import type { MultiUploadResult, UploadResult } from "~/blog/upload"
+import type { UploadResult } from "~/blog/upload"
 import { getSession } from "~/sessions"
 import { authenticate } from "~/auth"
 import { fetchApi } from "~/fetch-api"
 import { ApiError } from "~/error"
 import {
-	encrypt,
 	encryptFile,
 	encryptToRaw,
 	type Base64EncodedCipher,
@@ -96,7 +95,6 @@ function EditBlogPostPage() {
 	const insertUploadedImages = useEditorStore(
 		(state) => state.insertUploadedImages,
 	)
-	const isDecrypting = useEditorStore((state) => state.isDecrypting)
 	const editorStore = useEditorStoreContext()
 	const keyStore = useKeyStore()
 	const navigate = useNavigate()
@@ -314,7 +312,7 @@ function EditBlogPostPage() {
 
 	return (
 		<div className="w-full px-16 flex justify-center">
-			<main className="w-full mt-40 lg:max-w-prose">
+			<main className="w-full mt-40 max-w-prose">
 				<MainEditor ref={mainEditorRef} />
 				<BottomArea />
 			</main>
