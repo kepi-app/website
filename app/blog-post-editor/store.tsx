@@ -1,148 +1,70 @@
 import { useNavigate } from "@remix-run/react"
 import React, { useContext, useEffect } from "react"
 import { useRef } from "react"
-import { create, useStore } from "zustand"
-import { subscribeWithSelector } from "zustand/middleware"
+import { useStore } from "zustand"
 import type { BlogPost } from "~/blog/post"
-import type { UploadResult } from "~/blog/upload"
 import {
-	type SymmetricKey,
-	decrypt,
-	rawCipherFromBase64,
-	decryptRaw,
-} from "~/crypt"
+	MarkdownEditorStoreContext,
+	extendMarkdownEditorStore,
+	type MarkdownEditorState,
+} from "~/components/markdown-editor/markdown-editor"
+import type { SymmetricKey } from "~/crypt"
 import { useKeyStore } from "~/keystore"
 
-interface EditorState {
-	isPostDataLoaded: boolean
+interface PostEditorSlice {
 	title: string
 	description: string
-	content: string
 	statusMessage: string
-	isPreviewing: boolean
 	isFocused: boolean
-	isDecrypting: boolean
 	canUnfocus: boolean
-	pendingFiles: File[]
-	textSelectionStart: number
-	textSelectionEnd: number
 
 	decryptPost(post: BlogPost, key: SymmetricKey): Promise<void>
 	setTitle(title: string): void
 	setDescription(description: string): void
-	setContent(content: string): void
 	setIsFocused(isFocused: boolean): void
 	setCanUnfocus(canUnfocus: boolean): void
 	setStatusMessage(statusMessage: string): void
-	togglePreview(): void
-	addPendingFiles(files: FileList): void
-	clearPendingFiles(): void
-	setCurrentTextSelection({ start, end }: { start: number; end: number }): void
-	insertUploadedImages(images: UploadResult[], offset: number): void
 }
 
-type EditorStore = ReturnType<typeof createEditorStore>
+type PostEditorState = PostEditorSlice & MarkdownEditorState
+type PostEditorStore = ReturnType<typeof createPostEditorStore>
 
-const EditorStoreContext = React.createContext<EditorStore | null>(null)
+function createPostEditorStore() {
+	return extendMarkdownEditorStore<PostEditorSlice>((set, get) => ({
+		title: "",
+		description: "",
+		statusMessage: "",
+		isFocused: false,
+		canUnfocus: true,
 
-function createEditorStore() {
-	return create<EditorState>()(
-		subscribeWithSelector((set, get) => ({
-			isPostDataLoaded: false,
-			title: "",
-			description: "",
-			content: "",
-			statusMessage: "",
-			isDecrypting: false,
-			isPreviewing: false,
-			isFocused: false,
-			canUnfocus: true,
-			pendingFiles: [],
-			textSelectionStart: 0,
-			textSelectionEnd: 0,
-
-			decryptPost: async (post: BlogPost, key: SymmetricKey) => {
-				set((state) => ({ ...state, isDecrypting: true }))
-
-				if (!post.content) {
-					set((state) => ({
-						...state,
-						isDecrypting: false,
-						title: post.title,
-						description: post.description,
-					}))
-					return
-				}
-
-				const contentCipher = await rawCipherFromBase64(post.content)
-				const decryptResult = await decryptRaw(contentCipher, key)
-				if (decryptResult.isErr()) {
-					console.error(decryptResult.error)
-					// TODO: handle decrypt error
-					return
-				}
-
-				const decoder = new TextDecoder()
-
-				set((state) => ({
-					...state,
-					isDecrypting: false,
-					title: post.title,
-					description: post.description,
-					content: decoder.decode(decryptResult.value),
-				}))
-			},
-
-			setTitle: (title) => set((state) => ({ ...state, title })),
-			setDescription: (description) =>
-				set((state) => ({ ...state, description })),
-			setContent: (content) => set((state) => ({ ...state, content })),
-			setIsFocused: (isFocused) => set((state) => ({ ...state, isFocused })),
-			setCanUnfocus: (canUnfocus) => set((state) => ({ ...state, canUnfocus })),
-			setStatusMessage: (statusMessage) =>
-				set((state) => ({ ...state, statusMessage })),
-			togglePreview: () =>
-				set((state) => ({ ...state, isPreviewing: !state.isPreviewing })),
-			addPendingFiles: (files) =>
-				set((state) => ({
-					...state,
-					pendingFiles: [...state.pendingFiles, ...files],
-				})),
-			clearPendingFiles: () => set((state) => ({ ...state, pendingFiles: [] })),
-			setCurrentTextSelection: ({ start, end }) =>
-				set((state) => ({
-					...state,
-					textSelectionStart: start,
-					textSelectionEnd: end,
-				})),
-			insertUploadedImages: (images, offset) => {
-				const statements = images.map(
-					({ fileId }) => `![INSERT CAPTION](./files/${fileId})`,
-				)
-				console.log(statements)
-				const currentContent = get().content
-				return set((state) => ({
-					...state,
-					content:
-						currentContent.substring(0, offset) +
-						statements.join("\n") +
-						currentContent.substring(offset),
-				}))
-			},
-		})),
-	)
+		decryptPost: async (post, key): Promise<void> => {
+			await get().decryptContent(post.content ?? null, key)
+			set((state) => ({
+				...state,
+				title: post.title,
+				description: post.description,
+			}))
+		},
+		setTitle: (title) => set((state) => ({ ...state, title })),
+		setDescription: (description) =>
+			set((state) => ({ ...state, description })),
+		setIsFocused: (isFocused) => set((state) => ({ ...state, isFocused })),
+		setCanUnfocus: (canUnfocus) => set((state) => ({ ...state, canUnfocus })),
+		setStatusMessage: (statusMessage) =>
+			set((state) => ({ ...state, statusMessage })),
+	}))
 }
 
-function EditorStoreProvider({
+function PostEditorStoreProvider({
 	children,
 	post,
 }: React.PropsWithChildren<{ post: BlogPost }>) {
-	const storeRef = useRef<EditorStore>()
+	const storeRef = useRef<PostEditorStore>()
 	const keyStore = useKeyStore()
 	const navigate = useNavigate()
 
 	if (!storeRef.current) {
-		storeRef.current = createEditorStore()
+		storeRef.current = createPostEditorStore()
 	}
 
 	useEffect(() => {
@@ -159,23 +81,29 @@ function EditorStoreProvider({
 	}, [navigate, keyStore.getKey, post])
 
 	return (
-		<EditorStoreContext.Provider value={storeRef.current}>
+		<MarkdownEditorStoreContext.Provider value={storeRef.current}>
 			{children}
-		</EditorStoreContext.Provider>
+		</MarkdownEditorStoreContext.Provider>
 	)
 }
 
-function useEditorStoreContext() {
-	const store = useContext(EditorStoreContext)
+function usePostEditorStoreContext(): PostEditorStore {
+	const store = useContext(MarkdownEditorStoreContext)
 	if (!store) throw new Error("Missing EditorStoreContext")
+	// @ts-ignore
 	return store
 }
 
-function useEditorStore<T>(selector: (state: EditorState) => T): T {
-	const store = useContext(EditorStoreContext)
+function usePostEditorStore<T>(selector: (state: PostEditorState) => T): T {
+	const store = useContext(MarkdownEditorStoreContext)
 	if (!store) throw new Error("Missing EditorStoreContext")
+	// @ts-ignore
 	return useStore(store, selector)
 }
 
-export { EditorStoreProvider, useEditorStore, useEditorStoreContext }
-export type { EditorState }
+export {
+	PostEditorStoreProvider,
+	usePostEditorStore,
+	usePostEditorStoreContext,
+}
+export type { PostEditorState }

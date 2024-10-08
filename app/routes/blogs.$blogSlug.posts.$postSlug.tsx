@@ -2,28 +2,25 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node"
 import { json, useFetcher, useLoaderData, useNavigate } from "@remix-run/react"
 import dayjs from "dayjs"
 import { useEffect, useRef } from "react"
-import { MainEditor, type MainEditorRef } from "~/blog-post-editor/main-editor"
+import { authenticate } from "~/auth"
+import { MainEditor } from "~/blog-post-editor/main-editor"
 import {
-	EditorStoreProvider,
-	useEditorStore,
-	useEditorStoreContext,
+	PostEditorStoreProvider,
+	usePostEditorStore,
+	usePostEditorStoreContext,
 } from "~/blog-post-editor/store"
 import type { BlogPost } from "~/blog/post"
-
-import "katex/dist/katex.min.css"
-import "highlightjs/styles/atom-one-dark.css"
-import { BottomArea } from "~/blog-post-editor/bottom-area"
 import type { UploadResult } from "~/blog/upload"
-import { getSession } from "~/sessions"
-import { authenticate } from "~/auth"
-import { fetchApi } from "~/fetch-api"
-import { ApiError } from "~/error"
 import {
-	encryptFile,
-	encryptToRaw,
-	type Base64EncodedCipher,
-} from "~/crypt"
+	MarkdownEditor,
+	type MarkdownEditorRef,
+	MarkdownEditorStatus,
+} from "~/components/markdown-editor/markdown-editor"
+import { type Base64EncodedCipher, encryptFile, encryptToRaw } from "~/crypt"
+import { ApiError } from "~/error"
+import { fetchApi } from "~/fetch-api"
 import { useKeyStore } from "~/keystore"
+import { getSession } from "~/sessions"
 
 interface PostUpdate {
 	title?: string
@@ -57,9 +54,9 @@ export default function Page() {
 		return <ErrorPage />
 	}
 	return (
-		<EditorStoreProvider post={postData}>
+		<PostEditorStoreProvider post={postData}>
 			<WaitForDecryption />
-		</EditorStoreProvider>
+		</PostEditorStoreProvider>
 	)
 }
 
@@ -74,7 +71,9 @@ function ErrorPage() {
 }
 
 function WaitForDecryption() {
-	const isDecrypting = useEditorStore((state) => state.isDecrypting)
+	const isDecrypting = usePostEditorStore(
+		(state) => state.status === MarkdownEditorStatus.Decrypting,
+	)
 	if (isDecrypting) {
 		return (
 			<main className="w-full h-screen flex items-center justify-center">
@@ -88,14 +87,16 @@ function WaitForDecryption() {
 function EditBlogPostPage() {
 	const postUpdate = useRef<PostUpdate>({})
 	const autoSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
-	const mainEditorRef = useRef<MainEditorRef | null>(null)
-	const setStatusMessage = useEditorStore((state) => state.setStatusMessage)
-	const setIsFocused = useEditorStore((state) => state.setIsFocused)
-	const clearPendingFiles = useEditorStore((state) => state.clearPendingFiles)
-	const insertUploadedImages = useEditorStore(
+	const mainEditorRef = useRef<MarkdownEditorRef | null>(null)
+	const setStatusMessage = usePostEditorStore((state) => state.setStatusMessage)
+	const setIsFocused = usePostEditorStore((state) => state.setIsFocused)
+	const clearPendingFiles = usePostEditorStore(
+		(state) => state.clearPendingFiles,
+	)
+	const insertUploadedImages = usePostEditorStore(
 		(state) => state.insertUploadedImages,
 	)
-	const editorStore = useEditorStoreContext()
+	const editorStore = usePostEditorStoreContext()
 	const keyStore = useKeyStore()
 	const navigate = useNavigate()
 
@@ -148,12 +149,11 @@ function EditBlogPostPage() {
 			return
 		}
 
-		const contentInput = mainEditorRef?.current?.contentInput
-		if (!contentInput) {
+		if (!mainEditorRef.current) {
 			return
 		}
 
-		insertUploadedImages(uploadFetcher.data, contentInput.selectionEnd)
+		insertUploadedImages(uploadFetcher.data, mainEditorRef.current.selectionEnd)
 	}, [uploadFetcher.data, insertUploadedImages])
 
 	useEffect(
@@ -314,7 +314,10 @@ function EditBlogPostPage() {
 		<div className="w-full px-16 flex justify-center">
 			<main className="w-full mt-40 max-w-prose">
 				<MainEditor ref={mainEditorRef} />
-				<BottomArea />
+				<MarkdownEditor.Toolbar containerClassName="fixed z-10 px-16 bottom-0 left-0 right-0 ">
+					<MarkdownEditor.Toolbar.AttachImageButton />
+					<MarkdownEditor.Toolbar.PreviewButton />
+				</MarkdownEditor.Toolbar>
 			</main>
 		</div>
 	)

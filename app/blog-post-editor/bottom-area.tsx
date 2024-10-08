@@ -1,11 +1,11 @@
 import clsx from "clsx"
 import { ProgressiveBlurBackground } from "~/components/progressive-blur-background"
 import { ActionButtons } from "./action-buttons"
-import { useEditorStore } from "./store"
+import { usePostEditorStore } from "./store"
 import { UploadPreviews } from "./upload-previews"
 
 function BottomArea() {
-	const isFocused = useEditorStore((state) => state.isFocused)
+	const isFocused = usePostEditorStore((state) => state.isFocused)
 
 	return (
 		<div

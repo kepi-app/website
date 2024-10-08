@@ -5,14 +5,14 @@ import {
 	PhotoIcon,
 } from "@heroicons/react/24/outline"
 import { useRef, type ChangeEvent } from "react"
-import { useEditorStore } from "./store"
+import { usePostEditorStore } from "./store"
 import {
 	ActionToolbar,
 	ActionToolbarIconButton,
 } from "~/components/action-toolbar"
 
 function ActionButtons() {
-	const addPendingFiles = useEditorStore((state) => state.addPendingFiles)
+	const addPendingFiles = usePostEditorStore((state) => state.addPendingFiles)
 	const imageFileInputRef = useRef<HTMLInputElement | null>(null)
 
 	function openImagePicker() {
@@ -48,8 +48,8 @@ function ActionButtons() {
 }
 
 function PreviewButton() {
-	const isPreviewing = useEditorStore((state) => state.isPreviewing)
-	const togglePreview = useEditorStore((state) => state.togglePreview)
+	const isPreviewing = usePostEditorStore((state) => state.isPreviewing)
+	const togglePreview = usePostEditorStore((state) => state.togglePreview)
 	return (
 		<ActionToolbarIconButton
 			Icon={isPreviewing ? EyeSlashIcon : EyeIcon}

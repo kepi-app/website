@@ -1,9 +1,9 @@
-import { useEditorStore } from "./store"
+import { usePostEditorStore } from "./store"
 
 const MAX_PREVIEW_COUNT = 4
 
 function UploadPreviews() {
-	const pendingFiles = useEditorStore((state) => state.pendingFiles)
+	const pendingFiles = usePostEditorStore((state) => state.pendingFiles)
 
 	return (
 		<div className="w-full pt-4 flex justify-center">
