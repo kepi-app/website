@@ -1,22 +1,16 @@
-import type { LoaderFunctionArgs } from "@remix-run/node"
-import { json, useLoaderData, useParams } from "@remix-run/react"
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node"
+import { json, useFetcher, useLoaderData, useParams } from "@remix-run/react"
+import { type ChangeEvent, useEffect, useRef } from "react"
 import { authenticate } from "~/auth"
+import type { Blog } from "~/blog/blog"
 import { Anchor } from "~/components/anchor"
-import { AutoResizingTextArea } from "~/components/auto-resizing-textarea"
-import { getSession } from "~/sessions"
-import clsx from "clsx"
-import { ProgressiveBlurBackground } from "~/components/progressive-blur-background"
-import { UploadPreviews } from "~/blog-post-editor/upload-previews"
-import { ActionButtons } from "~/blog-post-editor/action-buttons"
-import {
-	ActionToolbar,
-	ActionToolbarIconButton,
-} from "~/components/action-toolbar"
-import { PaperClipIcon, PhotoIcon } from "@heroicons/react/24/outline"
-import { type ChangeEvent, useRef, useState } from "react"
-import { fetchApi } from "~/fetch-api"
-import { Blog } from "~/blog/blog"
+import { MarkdownEditor } from "~/components/markdown-editor/markdown-editor"
+import { MarkdownEditorStoreProvider } from "~/components/markdown-editor/store"
+import { encryptToRaw } from "~/crypt"
 import { ApiError } from "~/error"
+import { fetchApi } from "~/fetch-api"
+import { useKeyStore } from "~/keystore"
+import { getSession } from "~/sessions"
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
 	const session = await getSession(request.headers.get("Cookie"))
@@ -33,8 +27,68 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 	return json(result.value)
 }
 
+export function shouldRevalidate() {
+	return false
+}
+
 export default function HomePageEditor() {
 	const params = useParams()
+	const data = useLoaderData<typeof loader>()
+	const autoSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>()
+	const fetcher = useFetcher()
+	const keyStore = useKeyStore()
+
+	useEffect(() => {
+		return () => {
+			if (autoSaveTimeout.current) {
+				clearTimeout(autoSaveTimeout.current)
+			}
+		}
+	}, [])
+
+	if ("error" in data) {
+		return <ErrorPage />
+	}
+
+	async function saveHomePage(homeContent: string) {
+		const form = new FormData()
+
+		const keyResult = await keyStore.getKey()
+		if (keyResult.isErr()) {
+			console.error(keyResult.error)
+			return
+		}
+
+		const key = keyResult.value
+		const encResult = await encryptToRaw(homeContent, key)
+		if (encResult.isErr()) {
+			console.error(encResult.error)
+			return
+		}
+
+		const { authTag, iv, text } = encResult.value
+
+		form.set(
+			"homeContent",
+			new Blob([authTag, iv, text], { type: "application/octet-stream" }),
+		)
+
+		fetcher.submit(form, {
+			method: "PATCH",
+			encType: "multipart/form-data",
+		})
+		autoSaveTimeout.current = null
+	}
+
+	function onEditorChange(event: ChangeEvent<HTMLTextAreaElement>) {
+		if (autoSaveTimeout.current) {
+			clearTimeout(autoSaveTimeout.current)
+		}
+		const content = event.currentTarget.value
+		autoSaveTimeout.current = setTimeout(() => {
+			saveHomePage(content)
+		}, 2000)
+	}
 
 	return (
 		<div className="w-full flex justify-center">
@@ -52,70 +106,45 @@ export default function HomePageEditor() {
 					<Anchor>posts</Anchor>
 					<Anchor>about</Anchor>
 				</nav>
-				<AutoResizingTextArea
-					className="font-mono w-full bg-transparent focus:outline-none"
-					placeholder="welcome to my blog!"
-				/>
+				<MarkdownEditorStoreProvider content={data.homeContent}>
+					<MarkdownEditor onChange={onEditorChange} />
+					<MarkdownEditor.Toolbar containerClassName="fixed z-10 px-16 bottom-0 left-0 right-0 ">
+						<MarkdownEditor.Toolbar.AttachImageButton />
+						<MarkdownEditor.Toolbar.PreviewButton />
+					</MarkdownEditor.Toolbar>
+				</MarkdownEditorStoreProvider>
 			</div>
-			<BottomArea />
 		</div>
 	)
 }
 
-function ContentEditor() {
-	const data = useLoaderData<typeof loader>()
-	const [isDecrypting, setIsDecrypting] = useState(false)
-	const [content, setContent] = useState<string | null>(null)
-
-	if ("error" in data) {
-		return (
-			<p className="text-rose-500 dark:text-rose-200">
-				Failed to load content!
-			</p>
-		)
-	}
-
-	if (isDecrypting) {
-		return <p className="animate-pulse">Decrypting content...</p>
-	}
-}
-
-function BottomArea() {
-	const imageFileInputRef = useRef<HTMLInputElement | null>(null)
-
-	function openImagePicker() {
-		imageFileInputRef.current?.click()
-	}
-
-	function onImageChange(event: ChangeEvent<HTMLInputElement>) {
-		console.log(event.currentTarget.files)
-	}
-
+function ErrorPage() {
 	return (
-		<div className="fixed z-10 px-16 bottom-0 left-0 right-0 w-full flex flex-col items-center">
-			<ProgressiveBlurBackground />
-
-			<div className="z-10 flex flex-col items-center w-full lg:max-w-prose">
-				<ActionToolbar>
-					<input
-						ref={imageFileInputRef}
-						type="file"
-						multiple
-						className="hidden"
-						onChange={onImageChange}
-						accept="image/apng,image/avif,image/gif,image/jpeg,image/png,image/svg+xml,image/webp"
-					/>
-					<ActionToolbarIconButton
-						Icon={PhotoIcon}
-						onClick={openImagePicker}
-						aria-label="Insert image"
-					/>
-					<ActionToolbarIconButton
-						Icon={PaperClipIcon}
-						aria-label="Insert file"
-					/>
-				</ActionToolbar>
-			</div>
+		<div className="w-full px-16 flex justify-center bg-zinc-200 dark:bg-zinc-900">
+			<main className="w-full mt-40 max-w-prose">
+				<p>An error occurred when loading your home page.</p>
+			</main>
 		</div>
 	)
+}
+
+export async function action({ params, request }: ActionFunctionArgs) {
+	const session = await getSession(request.headers.get("Cookie"))
+	const headers = new Headers()
+	const accessToken = await authenticate(request, session, headers)
+
+	const form = await request.formData()
+
+	const updateResult = await fetchApi<Blog>(`/blogs/${params.blogSlug}`, {
+		body: form,
+		method: "PATCH",
+		headers: {
+			Authorization: `Bearer ${accessToken}`,
+		},
+	})
+	if (updateResult.isErr()) {
+		return json({ error: ApiError.Internal }, { status: 500 })
+	}
+
+	return json(updateResult.value)
 }
