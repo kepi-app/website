@@ -75,7 +75,7 @@ const ContentInput = forwardRef<
 		<AutoResizingTextArea
 			ref={ref}
 			stickToBottom
-			className="font-mono bg-transparent w-full mt-16 pb-24 focus:outline-none"
+			className="font-mono bg-transparent w-full pb-24 focus:outline-none"
 			placeholder="Content goes here..."
 			name="postContent"
 			value={content}

@@ -39,7 +39,7 @@ const MainEditor = forwardRef<MarkdownEditorRef>((_, ref) => {
 
 	return (
 		<>
-			<div className={clsx("transition-all", { "opacity-0": isFocused })}>
+			<div className={clsx("transition-all mb-8", { "opacity-0": isFocused })}>
 				<TitleInput />
 				<DescriptionInput />
 			</div>

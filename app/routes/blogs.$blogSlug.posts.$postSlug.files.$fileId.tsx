@@ -1,7 +1,7 @@
 import { json, type LoaderFunctionArgs } from "@remix-run/node"
 import { authenticate } from "~/auth"
 import { ApiError } from "~/error"
-import { fetchApi, fetchApiRaw } from "~/fetch-api"
+import { fetchApiRaw } from "~/fetch-api"
 import { getSession } from "~/sessions"
 
 export async function loader({ request, params }: LoaderFunctionArgs) {

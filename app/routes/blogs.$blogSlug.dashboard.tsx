@@ -17,8 +17,7 @@ export default function BlogDashboard() {
 
 	return (
 		<main className="w-full max-w-prose mt-20">
-			<h2 className="text-lg opacity-80">{params.blogSlug}</h2>
-			<h1 className="text-4xl mb-4 mt-8">edit</h1>
+			<h2 className="text-2xl opacity-80 mb-4">{params.blogSlug}</h2>
 			<ul className="space-y-2">
 				<li>
 					<Anchor href={`/blogs/${params.blogSlug}/home`}>home page</Anchor>

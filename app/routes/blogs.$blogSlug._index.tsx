@@ -91,30 +91,13 @@ export default function HomePageEditor() {
 	}
 
 	return (
-		<div className="w-full flex justify-center">
-			<div className="w-full max-w-prose mt-20">
-				<h1 className="text-2xl opacity-80 mb-4">
-					<a
-						className="hover:underline"
-						href={`/blogs/${params.blogSlug}/dashboard`}
-					>
-						{params.blogSlug}
-					</a>
-				</h1>
-				<nav className="flex flex-row space-x-4 mb-8 opacity-80">
-					<Anchor>home</Anchor>
-					<Anchor>posts</Anchor>
-					<Anchor>about</Anchor>
-				</nav>
-				<MarkdownEditorStoreProvider content={data.homeContent}>
-					<MarkdownEditor onChange={onEditorChange} />
-					<MarkdownEditor.Toolbar containerClassName="fixed z-10 px-16 bottom-0 left-0 right-0 ">
-						<MarkdownEditor.Toolbar.AttachImageButton />
-						<MarkdownEditor.Toolbar.PreviewButton />
-					</MarkdownEditor.Toolbar>
-				</MarkdownEditorStoreProvider>
-			</div>
-		</div>
+		<MarkdownEditorStoreProvider content={data.homeContent}>
+			<MarkdownEditor onChange={onEditorChange} />
+			<MarkdownEditor.Toolbar containerClassName="fixed z-10 px-16 bottom-0 left-0 right-0 ">
+				<MarkdownEditor.Toolbar.AttachImageButton />
+				<MarkdownEditor.Toolbar.PreviewButton />
+			</MarkdownEditor.Toolbar>
+		</MarkdownEditorStoreProvider>
 	)
 }
 
