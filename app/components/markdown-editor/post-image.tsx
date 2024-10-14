@@ -1,4 +1,4 @@
-import { useFetcher, useParams } from "@remix-run/react"
+import { useParams } from "@remix-run/react"
 import {
 	useEffect,
 	useState,
@@ -6,9 +6,6 @@ import {
 	type ImgHTMLAttributes,
 } from "react"
 import {
-	AUTH_TAG_BYTE_LENGTH,
-	IV_BYTE_LENGTH,
-	decrypt,
 	decryptRaw,
 	rawCipherFromArrayBuffer,
 	rawCipherFromBase64,
