@@ -9,7 +9,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	const accessToken = await authenticate(request, session)
 
 	const result = await fetchApiRaw(
-		`/blogs/${params.blogSlug}/posts/${params.postSlug}/files/${params.fileId}`,
+		`/blogs/${params.blogSlug}/files/${params.fileId}`,
 		{
 			headers: { Authorization: `Bearer ${accessToken}` },
 		},
@@ -23,7 +23,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	return new Response(await res.blob(), {
 		status: 200,
 		headers: {
-			"X-MimeType": res.headers.get("X-MimeType") || "",
+			"Content-Type-Cipher": res.headers.get("Content-Type-Cipher") || "",
 		},
 	})
 }

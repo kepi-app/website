@@ -33,12 +33,12 @@ function PostImage(
 			}
 
 			try {
-				const res = await fetch(`${params.postSlug}/${props.src}`)
+				const res = await fetch(`/blogs/${params.blogSlug}/${props.src}`)
 				if (res.status !== 200) {
 					throw new Error("failed to fetch file")
 				}
 
-				const mimeTypeBase64 = res.headers.get("X-MimeType")
+				const mimeTypeBase64 = res.headers.get("Content-Type-Cipher")
 				if (!mimeTypeBase64) {
 					return
 				}
@@ -56,18 +56,22 @@ function PostImage(
 				const url = URL.createObjectURL(
 					new Blob([fileBytes.buffer], { type: mimeType }),
 				)
+				console.log(url)
 				setUrl(url)
 			} catch (err) {
 				console.error(err)
 			}
 		}
 		decryptImage()
-	}, [keyStore.getKey, props.src, params.postSlug])
+	}, [keyStore.getKey, props.src, params.blogSlug])
 
 	if (!url) {
+		const { src, ...rest } = props
 		// biome-ignore lint/a11y/useAltText: <explanation>
-		return <img {...props} />
+		return <img {...rest} />
 	}
+
+	console.log(url)
 
 	// biome-ignore lint/a11y/useAltText: <explanation>
 	return <img {...props} src={url} />
