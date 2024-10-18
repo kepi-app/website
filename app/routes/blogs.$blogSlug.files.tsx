@@ -23,7 +23,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 	const formData = await unstable_parseMultipartFormData(request, uploadHandler)
 
 	const result = await fetchApi<UploadResult>(
-		`/blogs/${params.blogSlug}/posts/${params.postSlug}/files`,
+		`/blogs/${params.blogSlug}/files`,
 		{
 			method: "POST",
 			body: formData,

@@ -1,5 +1,11 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node"
-import { json, useFetcher, useLoaderData, useNavigate } from "@remix-run/react"
+import {
+	json,
+	useFetcher,
+	useLoaderData,
+	useNavigate,
+	useParams,
+} from "@remix-run/react"
 import dayjs from "dayjs"
 import { useEffect, useRef } from "react"
 import { authenticate } from "~/auth"
@@ -99,6 +105,7 @@ function EditBlogPostPage() {
 	const editorStore = usePostEditorStoreContext()
 	const keyStore = useKeyStore()
 	const navigate = useNavigate()
+	const params = useParams()
 
 	const fetcher = useFetcher()
 	const uploadFetcher = useFetcher<UploadResult[]>()
@@ -255,7 +262,7 @@ function EditBlogPostPage() {
 		uploadFetcher.submit(formData, {
 			encType: "multipart/form-data",
 			method: "POST",
-			action: "./files",
+			action: `/blogs/${params.blogSlug}/files`,
 		})
 	}
 
