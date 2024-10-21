@@ -1,8 +1,8 @@
 import {
 	type ActionFunctionArgs,
 	json,
-	redirect,
 	type LoaderFunctionArgs,
+	redirect,
 } from "@remix-run/node"
 import { useFetcher, useNavigate } from "@remix-run/react"
 import clsx from "clsx"
@@ -11,21 +11,21 @@ import _sodium from "libsodium-wrappers-sumo"
 import { Button } from "~/components/button"
 import { Logo } from "~/components/logo"
 import {
-	SymmetricKey,
+	type Base64EncodedCipher,
 	decrypt,
 	deriveStretchedMasterKey,
 	hashMasterPassword,
 	saveSymmetricKeyInSessionStorage,
-	type Base64EncodedCipher,
+	SymmetricKey,
 } from "~/crypt"
 import { fetchApi } from "~/fetch-api"
 import { ApiError } from "~/error"
 import { commitSession, getSession } from "~/sessions"
 import toast from "react-hot-toast"
-import { trys } from "trycat"
 import { saveEmail, saveProtectedSymmetricKey } from "~/local-storage"
 
 interface LoginResponse {
+	email: string
 	accessToken: string
 	refreshToken: string
 	expiresAtUnixMs: number
@@ -37,11 +37,14 @@ interface LoginResponse {
 export async function loader({ request }: LoaderFunctionArgs) {
 	const session = await getSession(request.headers.get("Cookie"))
 	const refreshToken = session.get("refreshToken")
-	console.log(session.get("isLoggingIn"))
-	if (refreshToken && !session.get("isLoggingIn")) {
+	if (refreshToken) {
 		return redirect("/blogs")
 	}
 	return null
+}
+
+export function shouldRevalidate() {
+	return false
 }
 
 export default function LoginPage() {
@@ -73,128 +76,72 @@ export default function LoginPage() {
 	async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
 		setIsSubmitting(true)
 
-		const form = new FormData(event.currentTarget)
-		const email = form.get("email")
-		const password = form.get("password")
-		if (
-			!email ||
-			!password ||
-			typeof email !== "string" ||
-			typeof password !== "string"
-		) {
-			toast("incorrect email or password")
-			setIsSubmitting(false)
-			return
-		}
+		try {
+			const form = new FormData(event.currentTarget)
+			const email = form.get("email")
+			const password = form.get("password")
+			if (
+				!email ||
+				!password ||
+				typeof email !== "string" ||
+				typeof password !== "string"
+			) {
+				toast("incorrect email or password")
+				setIsSubmitting(false)
+				return
+			}
 
-		await _sodium.ready
-		const sodium = _sodium
+			await _sodium.ready
+			const sodium = _sodium
 
-		const hashResult = await hashMasterPassword(email, password)
-		if (hashResult.isErr()) {
-			toast("incorrect email or password")
-			setIsSubmitting(false)
-			return
-		}
-
-		const stretchedMasterKeyResult = await deriveStretchedMasterKey(
-			hashResult.value.masterKey.hash,
-		)
-		if (stretchedMasterKeyResult.isErr()) {
-			toast.error("an error occurred on our end. please try again later.")
-			setIsSubmitting(false)
-			return
-		}
-
-		stretchedMasterKey.current = stretchedMasterKeyResult.value
-
-		form.set(
-			"passwordHash",
-			sodium.to_base64(
-				hashResult.value.masterPasswordHash.hash,
-				sodium.base64_variants.ORIGINAL,
-			),
-		)
-		form.delete("password")
-
-		fetcher.submit(form, { method: "POST" })
-	}
-
-	async function onLoginSuccessful(protectedSymmetricKey: Base64EncodedCipher) {
-		const submittedForm = fetcher.formData
-		const email = submittedForm?.get("email")
-		if (!email || typeof email !== "string") {
-			setIsSubmitting(false)
-			toast.error("an error occurred on our end. please try again later.")
-			return
-		}
-
-		const stretchedMasterKeyBytes = stretchedMasterKey.current
-		if (!stretchedMasterKeyBytes) {
-			setIsSubmitting(false)
-			toast.error("an error occurred on our end. please try again later.")
-			return
-		}
-
-		const symmetricKey = await decrypt(
-			protectedSymmetricKey,
-			stretchedMasterKeyBytes,
-		)
-		if (symmetricKey.isErr()) {
-			setIsSubmitting(false)
-			toast.error("an error occurred on our end. please try again later.")
-			return
-		}
-
-		saveSymmetricKeyInSessionStorage(new SymmetricKey(symmetricKey.value))
-		saveEmail(email)
-		saveProtectedSymmetricKey(protectedSymmetricKey)
-	}
-
-	async function decryptSymmetricKey(
-		protectedSymmetricKey: string,
-		authTag: string,
-		iv: string,
-	) {
-		await _sodium.ready
-		const sodium = _sodium
-
-		const stretchedMasterKeyBytes = stretchedMasterKey.current
-		if (!stretchedMasterKeyBytes) {
-			setIsSubmitting(false)
-			toast.error("an error occurred on our end. please try again later.")
-			return
-		}
-
-		const protectedSymmetricKeyBytes = sodium.from_base64(
-			protectedSymmetricKey,
-			sodium.base64_variants.ORIGINAL,
-		)
-		const authTagBytes = sodium.from_base64(
-			authTag,
-			sodium.base64_variants.ORIGINAL,
-		)
-		const ivBytes = sodium.from_base64(iv, sodium.base64_variants.ORIGINAL)
-
-		const symmetricKeyBytes = trys(() =>
-			sodium.crypto_aead_xchacha20poly1305_ietf_decrypt_detached(
-				null,
-				protectedSymmetricKeyBytes,
-				authTagBytes,
-				"",
-				ivBytes,
-				stretchedMasterKeyBytes.encryptionKey,
-				"uint8array",
-			),
-		)
-		if (symmetricKeyBytes.isErr()) {
-			setIsSubmitting(false)
-			toast.error("an error occured on our end. please try again later.")
-		} else {
-			saveSymmetricKeyInSessionStorage(
-				new SymmetricKey(symmetricKeyBytes.value),
+			const hashResult = await hashMasterPassword(email, password)
+			stretchedMasterKey.current = await deriveStretchedMasterKey(
+				hashResult.masterKey.hash,
 			)
+
+			form.set(
+				"passwordHash",
+				sodium.to_base64(
+					hashResult.masterPasswordHash.hash,
+					sodium.base64_variants.ORIGINAL,
+				),
+			)
+			form.delete("password")
+
+			fetcher.submit(form, { method: "POST" })
+
 			navigate("/blogs", { replace: true })
+		} catch (e) {
+			console.error(e)
+			toast.error("an error occurred on our end. please try again later.")
+			setIsSubmitting(false)
+		}
+	}
+
+	async function onLoginSuccessful(loginResponse: LoginResponse) {
+		const stretchedMasterKeyBytes = stretchedMasterKey.current
+		if (!stretchedMasterKeyBytes) {
+			setIsSubmitting(false)
+			toast.error("an error occurred on our end. please try again later.")
+			return
+		}
+
+		try {
+			const protectedSymmetricKey: Base64EncodedCipher = {
+				text: loginResponse.protectedSymmetricKey,
+				authTag: loginResponse.authTag,
+				iv: loginResponse.iv,
+			}
+			const symmetricKey = await decrypt(
+				protectedSymmetricKey,
+				stretchedMasterKeyBytes,
+			)
+			saveSymmetricKeyInSessionStorage(new SymmetricKey(symmetricKey))
+			saveEmail(loginResponse.email)
+			saveProtectedSymmetricKey(protectedSymmetricKey)
+		} catch (e) {
+			console.error(e)
+			toast.error("an error occurred on our end. please try again later.")
 		}
 	}
 
@@ -264,15 +211,8 @@ export async function action({ request }: ActionFunctionArgs) {
 	session.set("accessToken", response.accessToken)
 	session.set("refreshToken", response.refreshToken)
 	session.set("expiresAtUnixMs", response.expiresAtUnixMs)
-	session.flash("isLoggingIn", true)
 
-	const cipher: Base64EncodedCipher = {
-		text: response.protectedSymmetricKey,
-		authTag: response.authTag,
-		iv: response.iv,
-	}
-
-	return json(cipher, {
+	return json(response, {
 		headers: {
 			"Set-Cookie": await commitSession(session),
 		},

@@ -1,15 +1,16 @@
 import { useParams } from "@remix-run/react"
 import {
-	useEffect,
-	useState,
 	type DetailedHTMLProps,
 	type ImgHTMLAttributes,
+	useEffect,
+	useState,
 } from "react"
 import {
 	decryptRaw,
 	rawCipherFromArrayBuffer,
 	rawCipherFromBase64,
 } from "~/crypt"
+import { InternalError } from "~/errors"
 import { useKeyStore } from "~/keystore"
 
 function PostImage(
@@ -25,35 +26,36 @@ function PostImage(
 	useEffect(() => {
 		async function decryptImage() {
 			const key = await keyStore.getKey()
-			if (key.isErr()) {
-				return
-			}
-
 			try {
 				const res = await fetch(`/blogs/${params.blogSlug}/${props.src}`)
 				if (res.status !== 200) {
-					throw new Error("failed to fetch file")
+					if (res.status === 404) {
+						return
+					}
+					throw new InternalError(
+						`failed to retrieve post image ${props.src} because server returned ${res.status}`,
+					)
 				}
 
 				const mimeTypeBase64 = res.headers.get("Content-Type-Cipher")
 				if (!mimeTypeBase64) {
-					return
+					throw new InternalError(
+						`failed to retrieve post image ${props.src} because server did not return a mime type`,
+					)
 				}
 
 				const buf = await res.arrayBuffer()
 				const fileCipher = rawCipherFromArrayBuffer(buf)
 				const mimeTypeCipher = await rawCipherFromBase64(mimeTypeBase64)
 
-				const mimeTypeBytes = (
-					await decryptRaw(mimeTypeCipher, key.value)
-				).unwrap()
+				const mimeTypeBytes = await decryptRaw(mimeTypeCipher, key)
 				const mimeType = new TextDecoder().decode(mimeTypeBytes)
-				const fileBytes = (await decryptRaw(fileCipher, key.value)).unwrap()
+				const fileBytes = await decryptRaw(fileCipher, key)
 
 				const url = URL.createObjectURL(
 					new Blob([fileBytes.buffer], { type: mimeType }),
 				)
-				console.log(url)
+
 				setUrl(url)
 			} catch (err) {
 				console.error(err)

@@ -104,7 +104,6 @@ function EditBlogPostPage() {
 	)
 	const editorStore = usePostEditorStoreContext()
 	const keyStore = useKeyStore()
-	const navigate = useNavigate()
 	const params = useParams()
 
 	const fetcher = useFetcher()
@@ -221,23 +220,12 @@ function EditBlogPostPage() {
 		}
 
 		const key = await keyStore.getKey()
-		if (key.isErr()) {
-			// TODO: handle error
-			return
-		}
 
 		const promises: Promise<void>[] = []
 		const formData = new FormData()
 		for (const file of files) {
 			promises.push(
-				encryptFile(file, key.value).then((encResult) => {
-					if (encResult.isErr()) {
-						// TODO: handle encryption failure
-						return
-					}
-
-					const { fileCipher, mimeTypeCipher } = encResult.value
-
+				encryptFile(file, key).then(({ fileCipher, mimeTypeCipher }) => {
 					formData.append(
 						"files",
 						new Blob([fileCipher.authTag, fileCipher.iv, fileCipher.text], {
@@ -257,13 +245,16 @@ function EditBlogPostPage() {
 			)
 		}
 
-		await Promise.all(promises)
-
-		uploadFetcher.submit(formData, {
-			encType: "multipart/form-data",
-			method: "POST",
-			action: `/blogs/${params.blogSlug}/files`,
-		})
+		try {
+			await Promise.all(promises)
+			uploadFetcher.submit(formData, {
+				encType: "multipart/form-data",
+				method: "POST",
+				action: `/blogs/${params.blogSlug}/files`,
+			})
+		} catch {
+			// TODO: handle file encryption error
+		}
 	}
 
 	function autoSaveAfterTimeout() {
@@ -278,26 +269,21 @@ function EditBlogPostPage() {
 
 		if (postUpdate.current.content) {
 			const key = await keyStore.getKey()
-			if (key.isErr()) {
-				navigate("/login", { replace: true })
-				return
+
+			try {
+				const { authTag, iv, text } = await encryptToRaw(
+					postUpdate.current.content,
+					key,
+				)
+
+				updateForm.set(
+					"content",
+					new Blob([authTag, iv, text], { type: "application/octet-stream" }),
+				)
+			} catch (e) {
+				console.error(e)
+				// TODO: handle post encryption error
 			}
-
-			const encResult = await encryptToRaw(
-				postUpdate.current.content,
-				key.value,
-			)
-			if (encResult.isErr()) {
-				console.error(encResult.error)
-				return
-			}
-
-			const { authTag, iv, text } = encResult.value
-
-			updateForm.set(
-				"content",
-				new Blob([authTag, iv, text], { type: "application/octet-stream" }),
-			)
 		}
 
 		if (postUpdate.current.title) {

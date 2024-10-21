@@ -1,6 +1,6 @@
 import {
 	type ActionFunctionArgs,
-	json,
+	json, type LoaderFunctionArgs,
 	unstable_createMemoryUploadHandler,
 	unstable_parseMultipartFormData,
 } from "@remix-run/node"
@@ -9,6 +9,21 @@ import type { UploadResult } from "~/blog/upload"
 import { ApiError } from "~/error"
 import { fetchApi } from "~/fetch-api"
 import { getSession } from "~/sessions"
+
+export async function loader({ request, params }: LoaderFunctionArgs) {
+	const session = await getSession(request.headers.get("Cookie"))
+	const accessToken = await authenticate(request, session)
+
+	const result = await fetchApi<{ fileId: string }>(`/blogs/${params.blogSlug}/files`, {
+		method: "GET",
+		headers: { Authorization: `Bearer ${accessToken}` },
+	})
+	if (result.isErr()) {
+		return json({ error: ApiError.Internal }, { status: 500 })
+	}
+
+	return json(result)
+}
 
 export async function action({ request, params }: ActionFunctionArgs) {
 	const session = await getSession(request.headers.get("Cookie"))

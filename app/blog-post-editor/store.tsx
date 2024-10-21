@@ -69,12 +69,13 @@ function PostEditorStoreProvider({
 
 	useEffect(() => {
 		async function decryptPost() {
-			const key = await keyStore.getKey()
-			if (key.isErr()) {
-				navigate("/login", { replace: true })
-			} else {
+			try {
+				const key = await keyStore.getKey()
 				// biome-ignore lint/style/noNonNullAssertion: <explanation>
-				storeRef.current!.getState().decryptPost(post, key.value)
+				storeRef.current!.getState().decryptPost(post, key)
+			} catch (e) {
+				console.error(e)
+				navigate("/login", { replace: true })
 			}
 		}
 		decryptPost()

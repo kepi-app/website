@@ -39,7 +39,7 @@ export default function AllBlogsPage() {
 					<ul>
 						{data.map((blog) => (
 							<li key={blog.slug}>
-								<Anchor href={`/blogs/${blog.slug}/dashboard`}>
+								<Anchor href={`/blogs/${blog.slug}`}>
 									{blog.name}
 								</Anchor>
 							</li>

@@ -1,12 +1,6 @@
 import { useNavigate } from "@remix-run/react"
-import React, { useContext, useEffect } from "react"
-import { useRef } from "react"
-import {
-	create,
-	useStore,
-	type StateCreator,
-	type StoreMutators,
-} from "zustand"
+import React, { useContext, useEffect, useRef } from "react"
+import { type StateCreator, create, useStore } from "zustand"
 import { subscribeWithSelector } from "zustand/middleware"
 import type { UploadResult } from "~/blog/upload"
 import { type SymmetricKey, decryptRaw, rawCipherFromBase64 } from "~/crypt"
@@ -60,24 +54,23 @@ const _stateCreator: StateCreator<
 			return
 		}
 
-		const contentCipher = await rawCipherFromBase64(content)
-		const decryptResult = await decryptRaw(contentCipher, key)
-		if (decryptResult.isErr()) {
-			console.error(decryptResult.error)
+		try {
+			const contentCipher = await rawCipherFromBase64(content)
+			const decrypted = await decryptRaw(contentCipher, key)
+			const decoder = new TextDecoder()
+			set((state) => ({
+				...state,
+				content: decoder.decode(decrypted),
+				status: MarkdownEditorStatus.Editing,
+			}))
+		} catch (e) {
+			console.error(e)
 			set((state) => ({
 				...state,
 				content: "",
 				status: MarkdownEditorStatus.DecryptionError,
 			}))
-			return
 		}
-
-		const decoder = new TextDecoder()
-		set((state) => ({
-			...state,
-			content: decoder.decode(decryptResult.value),
-			status: MarkdownEditorStatus.Editing,
-		}))
 	},
 
 	setContent: (content) => set((state) => ({ ...state, content })),
@@ -144,12 +137,13 @@ function MarkdownEditorStoreProvider({
 
 	useEffect(() => {
 		async function decryptPost() {
-			const key = await keyStore.getKey()
-			if (key.isErr()) {
-				navigate("/login", { replace: true })
-			} else {
+			try {
+				const key = await keyStore.getKey()
 				// biome-ignore lint/style/noNonNullAssertion: <explanation>
-				storeRef.current!.getState().decryptContent(content, key.value)
+				storeRef.current!.getState().decryptContent(content, key)
+			} catch (e) {
+				console.error(e)
+				navigate("/login", { replace: true })
 			}
 		}
 		decryptPost()

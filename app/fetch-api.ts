@@ -7,7 +7,7 @@ type Endpoint =
 	| `/blogs/${string}`
 	| `/blogs/${string}/posts`
 	| `/blogs/${string}/posts/${string}/files/${string}`
-	| `/blogs/${string}`
+	| `/blogs/${string}/publish`
 	| "/sign-up"
 	| "/auth/token"
 	| "/auth/login"

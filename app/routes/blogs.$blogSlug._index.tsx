@@ -3,7 +3,6 @@ import { json, useFetcher, useLoaderData, useParams } from "@remix-run/react"
 import { type ChangeEvent, useEffect, useRef } from "react"
 import { authenticate } from "~/auth"
 import type { Blog } from "~/blog/blog"
-import { Anchor } from "~/components/anchor"
 import { MarkdownEditor } from "~/components/markdown-editor/markdown-editor"
 import { MarkdownEditorStoreProvider } from "~/components/markdown-editor/store"
 import { encryptToRaw } from "~/crypt"
@@ -32,7 +31,6 @@ export function shouldRevalidate() {
 }
 
 export default function HomePageEditor() {
-	const params = useParams()
 	const data = useLoaderData<typeof loader>()
 	const autoSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>()
 	const fetcher = useFetcher()
@@ -53,31 +51,23 @@ export default function HomePageEditor() {
 	async function saveHomePage(homeContent: string) {
 		const form = new FormData()
 
-		const keyResult = await keyStore.getKey()
-		if (keyResult.isErr()) {
-			console.error(keyResult.error)
-			return
+		try {
+			const key = await keyStore.getKey()
+			const { authTag, iv, text } = await encryptToRaw(homeContent, key)
+
+			form.set(
+				"homeContent",
+				new Blob([authTag, iv, text], { type: "application/octet-stream" }),
+			)
+
+			fetcher.submit(form, {
+				method: "PATCH",
+				encType: "multipart/form-data",
+			})
+			autoSaveTimeout.current = null
+		} catch (e) {
+
 		}
-
-		const key = keyResult.value
-		const encResult = await encryptToRaw(homeContent, key)
-		if (encResult.isErr()) {
-			console.error(encResult.error)
-			return
-		}
-
-		const { authTag, iv, text } = encResult.value
-
-		form.set(
-			"homeContent",
-			new Blob([authTag, iv, text], { type: "application/octet-stream" }),
-		)
-
-		fetcher.submit(form, {
-			method: "PATCH",
-			encType: "multipart/form-data",
-		})
-		autoSaveTimeout.current = null
 	}
 
 	function onEditorChange(event: ChangeEvent<HTMLTextAreaElement>) {
