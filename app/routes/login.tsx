@@ -139,6 +139,8 @@ export default function LoginPage() {
 			saveSymmetricKeyInSessionStorage(new SymmetricKey(symmetricKey))
 			saveEmail(loginResponse.email)
 			saveProtectedSymmetricKey(protectedSymmetricKey)
+
+			navigate("/blogs", { replace: true })
 		} catch (e) {
 			console.error(e)
 			toast.error("an error occurred on our end. please try again later.")

@@ -7,4 +7,8 @@ interface BlogPost {
 	content?: string
 }
 
-export type { BlogPost }
+interface NonEmptyBlogPost extends BlogPost {
+	content: string
+}
+
+export type { BlogPost, NonEmptyBlogPost }

@@ -1,12 +1,10 @@
 import Markdown from "react-markdown"
-import rehypeHighlight from "rehype-highlight"
-import rehypeKatex from "rehype-katex"
-import remarkGfm from "remark-gfm"
-import remarkMath from "remark-math"
 import { PostImage } from "~/components/markdown-editor/post-image"
+import { REHYPE_PLUGINS, REMARK_PLUGINS } from "~/markdown/plugins"
+import { useMarkdownEditorStore } from "./store"
+
 import "katex/dist/katex.min.css"
 import "highlightjs/styles/atom-one-dark.css"
-import { useMarkdownEditorStore } from "./store"
 
 function MarkdownPreview() {
 	const content = useMarkdownEditorStore((state) => state.content)
@@ -14,8 +12,8 @@ function MarkdownPreview() {
 	return (
 		<article className="prose dark:prose-invert mt-16 mb-40">
 			<Markdown
-				remarkPlugins={[remarkMath, remarkGfm]}
-				rehypePlugins={[rehypeKatex, rehypeHighlight]}
+				remarkPlugins={REMARK_PLUGINS}
+				rehypePlugins={REHYPE_PLUGINS}
 				components={{
 					pre: (props) => <pre {...props} className="hljs" />,
 					img: PostImage,

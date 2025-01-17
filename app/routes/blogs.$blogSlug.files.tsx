@@ -22,7 +22,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		return json({ error: ApiError.Internal }, { status: 500 })
 	}
 
-	return json(result)
+	return json(result.value)
 }
 
 export async function action({ request, params }: ActionFunctionArgs) {
