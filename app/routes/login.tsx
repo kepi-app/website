@@ -9,6 +9,7 @@ import clsx from "clsx"
 import _sodium from "libsodium-wrappers-sumo"
 import { useEffect, useId, useRef, useState } from "react"
 import toast from "react-hot-toast"
+import { Anchor } from "~/components/anchor"
 import { Button } from "~/components/button"
 import { Logo } from "~/components/logo"
 import {
@@ -197,6 +198,13 @@ export default function LoginPage() {
 						Login
 					</Button>
 				</fetcher.Form>
+
+				<p className="text-xs text-center opacity-80 col-span-3 pt-8 my-4 leading-loose">
+					don't have an account?{" "}
+					<Anchor href="/sign-up" className="font-bold">
+						click here to sign up
+					</Anchor>
+				</p>
 			</main>
 		</div>
 	)
