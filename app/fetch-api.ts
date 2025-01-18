@@ -1,6 +1,7 @@
-import { err, ok, type Result } from "trycat"
-import { ApiError } from "./error"
 import { redirect } from "@remix-run/node"
+import { type Result, err, ok } from "trycat"
+import { type CheckedPromise, promiseOrThrow } from "~/errors"
+import { ApiError } from "./error"
 
 type Endpoint =
 	| "/blogs"
@@ -14,25 +15,28 @@ type Endpoint =
 
 async function fetchApi<T = undefined>(
 	endpoint: Endpoint,
-	init?: RequestInit & { redirectToLogin?: boolean },
-): Promise<Result<T, ApiError>> {
-	const res = await fetch(`${process.env.API_URL}${endpoint}`, init)
-	console.log(res.status)
+	init?: RequestInit,
+): CheckedPromise<T, ApiError> {
+	const res = await promiseOrThrow(
+		fetch(`${process.env.API_URL}${endpoint}`, init),
+		(error) => {
+			console.error(error)
+			return ApiError.Network
+		},
+	)
 	switch (res.status) {
 		case 401:
-			if (init?.redirectToLogin ?? true) {
-				throw redirect("/login")
-			}
-			return err(ApiError.Unauthorized)
+			throw ApiError.Unauthorized
 		case 409:
-			return err(ApiError.Conflict)
+			throw ApiError.Conflict
 		case 200: {
-			const json: T = await res.json()
-			return ok(json)
+			return promiseOrThrow(res.json(), (error) => {
+				console.error(error)
+				return ApiError.Internal
+			})
 		}
-
 		default:
-			return err(ApiError.Internal)
+			throw ApiError.Internal
 	}
 }
 

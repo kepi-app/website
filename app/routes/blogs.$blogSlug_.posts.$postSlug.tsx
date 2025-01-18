@@ -1,14 +1,8 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node"
-import {
-	json,
-	useFetcher,
-	useLoaderData,
-	useNavigate,
-	useParams,
-} from "@remix-run/react"
+import { json, useFetcher, useLoaderData, useParams } from "@remix-run/react"
 import dayjs from "dayjs"
 import { useEffect, useRef } from "react"
-import { authenticate } from "~/auth"
+import { authenticate, redirectToLoginPage } from "~/auth"
 import { MainEditor } from "~/blog-post-editor/main-editor"
 import {
 	PostEditorStoreProvider,
@@ -38,16 +32,21 @@ interface PostUpdate {
 export async function loader({ request, params }: LoaderFunctionArgs) {
 	const session = await getSession(request.headers.get("Cookie"))
 	const accessToken = await authenticate(request, session)
-	const result = await fetchApi<BlogPost>(
-		`/blogs/${params.blogSlug}/posts/${params.postSlug}`,
-		{
-			headers: { Authorization: `Bearer ${accessToken}` },
-		},
-	)
-	if (result.isErr()) {
-		return json({ error: ApiError.Internal }, { status: 500 })
+	try {
+		const blogPost = await fetchApi<BlogPost>(
+			`/blogs/${params.blogSlug}/posts/${params.postSlug}`,
+			{
+				headers: { Authorization: `Bearer ${accessToken}` },
+			},
+		)
+		return json(blogPost)
+	} catch (error) {
+		if (error === ApiError.Unauthorized) {
+			redirectToLoginPage()
+		} else {
+			return json({ error: ApiError.Internal }, { status: 500 })
+		}
 	}
-	return json(result.value)
 }
 
 export function shouldRevalidate() {
@@ -322,17 +321,21 @@ export async function action({ params, request }: ActionFunctionArgs) {
 	const accessToken = await authenticate(request, session, headers)
 
 	const updateForm = await request.formData()
-	const updated = await fetchApi<Base64EncodedCipher>(
-		`/blogs/${params.blogSlug}/posts/${params.postSlug}`,
-		{
-			method: "PATCH",
-			body: updateForm,
-			headers: { Authorization: `Bearer ${accessToken}` },
-		},
-	)
-	if (updated.isErr()) {
-		return json({ error: ApiError.Internal }, { status: 500 })
+	try {
+		const updated = await fetchApi<Base64EncodedCipher>(
+			`/blogs/${params.blogSlug}/posts/${params.postSlug}`,
+			{
+				method: "PATCH",
+				body: updateForm,
+				headers: { Authorization: `Bearer ${accessToken}` },
+			},
+		)
+		return json(updated)
+	} catch (error) {
+		if (error === ApiError.Unauthorized) {
+			redirectToLoginPage()
+		} else {
+			return json({ error: ApiError.Internal }, { status: 500 })
+		}
 	}
-
-	return json(updated.value)
 }

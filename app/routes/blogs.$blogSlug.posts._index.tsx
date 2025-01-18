@@ -7,7 +7,7 @@ import {
 	useParams,
 } from "@remix-run/react"
 import { useState } from "react"
-import { authenticate } from "~/auth"
+import { authenticate, redirectToLoginPage } from "~/auth"
 import type { BlogPost } from "~/blog/post"
 import { Anchor } from "~/components/anchor"
 import { SmallButton } from "~/components/small-button"
@@ -21,22 +21,23 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	const session = await getSession(request.headers.get("Cookie"))
 	const accessToken = await authenticate(request, session)
 
-	const result = await fetchApi<BlogPost[]>(`/blogs/${params.blogSlug}/posts`, {
-		headers: {
-			Authorization: `Bearer ${accessToken}`,
-		},
-	})
-	if (result.isErr()) {
-		switch (result.error) {
-			case ApiError.Unauthorized:
-				throw redirect("/login")
-			default:
-				// TODO: create internal error page
-				throw redirect("/internal")
+	try {
+		const allBlogPosts = await fetchApi<BlogPost[]>(
+			`/blogs/${params.blogSlug}/posts`,
+			{
+				headers: {
+					Authorization: `Bearer ${accessToken}`,
+				},
+			},
+		)
+		return json(allBlogPosts)
+	} catch (error) {
+		if (error === ApiError.Unauthorized) {
+			redirectToLoginPage()
+		} else {
+			throw json({ error: ApiError.Internal }, { status: 500 })
 		}
 	}
-
-	return json<BlogPost[]>(result.value)
 }
 
 export default function BlogPostDashboard() {
@@ -143,26 +144,27 @@ export async function action({ request, params }: ActionFunctionArgs) {
 	const postForm = new FormData()
 	postForm.set("title", postTitle)
 
-	const createdPostResult = await fetchApi<BlogPost>(
-		`/blogs/${params.blogSlug}/posts/${postSlug}`,
-		{
-			method: "POST",
-			headers: { Authorization: `Bearer ${accessToken}` },
-			body: postForm,
-		},
-	)
-	if (createdPostResult.isErr()) {
-		switch (createdPostResult.error) {
+	try {
+		const createdPost = await fetchApi<BlogPost>(
+			`/blogs/${params.blogSlug}/posts/${postSlug}`,
+			{
+				method: "POST",
+				headers: { Authorization: `Bearer ${accessToken}` },
+				body: postForm,
+			},
+		)
+		return redirect(`/blogs/${params.blogSlug}/posts/${createdPost.slug}`, {
+			headers,
+		})
+	} catch (error) {
+		switch (error) {
 			case ApiError.Unauthorized:
-				return redirect("/login")
+				redirectToLoginPage()
+				break
 			case ApiError.Conflict:
 				return json({ error: ApiError.Conflict }, { status: 409 })
 			default:
 				return json({ error: ApiError.Internal }, { status: 500 })
 		}
 	}
-
-	const createdPost = createdPostResult.value
-
-	return redirect(`/blogs/${params.blogSlug}/posts/${createdPost.slug}`)
 }

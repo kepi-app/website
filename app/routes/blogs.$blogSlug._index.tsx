@@ -1,7 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node"
-import { json, useFetcher, useLoaderData, useParams } from "@remix-run/react"
+import { json, useFetcher, useLoaderData } from "@remix-run/react"
 import { type ChangeEvent, useEffect, useRef } from "react"
-import { authenticate } from "~/auth"
+import { authenticate, redirectToLoginPage } from "~/auth"
 import type { Blog } from "~/blog/blog"
 import { MarkdownEditor } from "~/components/markdown-editor/markdown-editor"
 import { MarkdownEditorStoreProvider } from "~/components/markdown-editor/store"
@@ -15,15 +15,20 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 	const session = await getSession(request.headers.get("Cookie"))
 	const accessToken = await authenticate(request, session)
 
-	const result = await fetchApi<Blog>(`/blogs/${params.blogSlug}`, {
-		headers: {
-			Authorization: `Bearer ${accessToken}`,
-		},
-	})
-	if (result.isErr()) {
-		return json({ error: ApiError.Internal }, { status: 500 })
+	try {
+		const res = await fetchApi<Blog>(`/blogs/${params.blogSlug}`, {
+			headers: {
+				Authorization: `Bearer ${accessToken}`,
+			},
+		})
+		return json(res)
+	} catch (error) {
+		if (error === ApiError.Unauthorized) {
+			redirectToLoginPage()
+		} else {
+			return json({ error: ApiError.Internal }, { status: 500 })
+		}
 	}
-	return json(result.value)
 }
 
 export function shouldRevalidate() {
@@ -65,9 +70,7 @@ export default function HomePageEditor() {
 				encType: "multipart/form-data",
 			})
 			autoSaveTimeout.current = null
-		} catch (e) {
-
-		}
+		} catch (e) {}
 	}
 
 	function onEditorChange(event: ChangeEvent<HTMLTextAreaElement>) {
@@ -108,16 +111,20 @@ export async function action({ params, request }: ActionFunctionArgs) {
 
 	const form = await request.formData()
 
-	const updateResult = await fetchApi<Blog>(`/blogs/${params.blogSlug}`, {
-		body: form,
-		method: "PATCH",
-		headers: {
-			Authorization: `Bearer ${accessToken}`,
-		},
-	})
-	if (updateResult.isErr()) {
-		return json({ error: ApiError.Internal }, { status: 500 })
+	try {
+		const res = await fetchApi<Blog>(`/blogs/${params.blogSlug}`, {
+			body: form,
+			method: "PATCH",
+			headers: {
+				Authorization: `Bearer ${accessToken}`,
+			},
+		})
+		return json(res)
+	} catch (error) {
+		if (error === ApiError.Unauthorized) {
+			redirectToLoginPage()
+		} else {
+			return json({ error: ApiError.Internal }, { status: 500 })
+		}
 	}
-
-	return json(updateResult.value)
 }

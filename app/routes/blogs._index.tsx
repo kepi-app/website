@@ -1,6 +1,6 @@
-import { json, redirect, type LoaderFunctionArgs } from "@remix-run/node"
+import { type LoaderFunctionArgs, json, redirect } from "@remix-run/node"
 import { useLoaderData } from "@remix-run/react"
-import { authenticate } from "~/auth"
+import { authenticate, redirectToLoginPage } from "~/auth"
 import type { Blog } from "~/blog/blog"
 import { Anchor } from "~/components/anchor"
 import { ApiError } from "~/error"
@@ -10,20 +10,22 @@ import { getSession } from "~/sessions"
 export async function loader({ request }: LoaderFunctionArgs) {
 	const session = await getSession(request.headers.get("Cookie"))
 	const accessToken = await authenticate(request, session)
-	const result = await fetchApi<Blog[]>("/blogs", {
-		headers: { Authorization: `Bearer ${accessToken}` },
-	})
-	if (result.isErr()) {
-		return json({ error: ApiError.Internal }, { status: 500 })
+
+	try {
+		const blogs = await fetchApi<Blog[]>("/blogs", {
+			headers: { Authorization: `Bearer ${accessToken}` },
+		})
+		if (blogs.length <= 0) {
+			return redirect("/blogs/new")
+		}
+		return json(blogs)
+	} catch (error) {
+		if (error === ApiError.Unauthorized) {
+			redirectToLoginPage()
+		} else {
+			return json({ error: ApiError.Internal }, { status: 500 })
+		}
 	}
-
-	const blogs = result.value
-
-	if (blogs.length <= 0) {
-		return redirect("/blogs/new")
-	}
-
-	return json(result.value)
 }
 
 export default function AllBlogsPage() {
@@ -39,9 +41,7 @@ export default function AllBlogsPage() {
 					<ul>
 						{data.map((blog) => (
 							<li key={blog.slug}>
-								<Anchor href={`/blogs/${blog.slug}`}>
-									{blog.name}
-								</Anchor>
+								<Anchor href={`/blogs/${blog.slug}`}>{blog.name}</Anchor>
 							</li>
 						))}
 					</ul>

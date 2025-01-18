@@ -382,4 +382,4 @@ export {
 	rawCipherFromArrayBuffer,
 	rawCipherFromBase64,
 }
-export type { CryptInfo, Base64EncodedCipher }
+export type { CryptInfo, Base64EncodedCipher, HashResult }

@@ -21,7 +21,7 @@ import {
 	hashMasterPassword,
 	saveSymmetricKeyInSessionStorage,
 } from "~/crypt"
-import { ApiError } from "~/error"
+import { ApiError, isErrorResponse } from "~/error"
 import { fetchApi } from "~/fetch-api"
 import { saveEmail, saveProtectedSymmetricKey } from "~/local-storage"
 import { commitSession, getSession } from "~/sessions"
@@ -59,7 +59,7 @@ export default function LoginPage() {
 
 	useEffect(() => {
 		if (fetcher.data) {
-			if ("error" in fetcher.data) {
+			if (isErrorResponse(fetcher.data)) {
 				setIsSubmitting(false)
 				switch (fetcher.data.error) {
 					case ApiError.Unauthorized:
@@ -213,29 +213,26 @@ export default function LoginPage() {
 export async function action({ request }: ActionFunctionArgs) {
 	const form = await request.formData()
 
-	const result = await fetchApi<LoginResponse>("/auth/login", {
-		method: "POST",
-		body: form,
-		redirectToLogin: false,
-	})
-	if (result.isErr()) {
-		switch (result.error) {
-			case ApiError.Unauthorized:
-				return json({ error: ApiError.Unauthorized }, { status: 401 })
-			default:
-				return json({ error: ApiError.Internal }, { status: 500 })
+	try {
+		const response = await fetchApi<LoginResponse>("/auth/login", {
+			method: "POST",
+			body: form,
+		})
+
+		const session = await getSession(request.headers.get("Cookie"))
+		session.set("accessToken", response.accessToken)
+		session.set("refreshToken", response.refreshToken)
+		session.set("expiresAtUnixMs", response.expiresAtUnixMs)
+
+		return json(response, {
+			headers: {
+				"Set-Cookie": await commitSession(session),
+			},
+		})
+	} catch (err) {
+		if ((err as ApiError) === ApiError.Unauthorized) {
+			return json({ error: ApiError.Unauthorized }, { status: 401 })
 		}
+		return json({ error: ApiError.Internal }, { status: 500 })
 	}
-
-	const response = result.value
-	const session = await getSession(request.headers.get("Cookie"))
-	session.set("accessToken", response.accessToken)
-	session.set("refreshToken", response.refreshToken)
-	session.set("expiresAtUnixMs", response.expiresAtUnixMs)
-
-	return json(response, {
-		headers: {
-			"Set-Cookie": await commitSession(session),
-		},
-	})
 }

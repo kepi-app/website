@@ -1,8 +1,8 @@
-import { redirect, type Session } from "@remix-run/node"
-import { commitSession, type SessionData } from "./sessions"
+import { type Session, redirect } from "@remix-run/node"
 import dayjs from "dayjs"
-import { err, ok, tryp, type Result } from "trycat"
+import { type Result, err, ok, tryp } from "trycat"
 import { ApiError } from "./error"
+import { type SessionData, commitSession } from "./sessions"
 
 interface TokenResponse {
 	accessToken: string
@@ -93,4 +93,8 @@ async function fetchNewTokens(
 	return ok(tokenResponse)
 }
 
-export { authenticate }
+function redirectToLoginPage(): never {
+	throw redirect("/login")
+}
+
+export { authenticate, redirectToLoginPage }

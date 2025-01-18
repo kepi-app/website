@@ -1,10 +1,11 @@
 import {
 	type ActionFunctionArgs,
-	json, type LoaderFunctionArgs,
+	type LoaderFunctionArgs,
+	json,
 	unstable_createMemoryUploadHandler,
 	unstable_parseMultipartFormData,
 } from "@remix-run/node"
-import { authenticate } from "~/auth"
+import { authenticate, redirectToLoginPage } from "~/auth"
 import type { UploadResult } from "~/blog/upload"
 import { ApiError } from "~/error"
 import { fetchApi } from "~/fetch-api"
@@ -14,15 +15,22 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	const session = await getSession(request.headers.get("Cookie"))
 	const accessToken = await authenticate(request, session)
 
-	const result = await fetchApi<{ fileId: string }>(`/blogs/${params.blogSlug}/files`, {
-		method: "GET",
-		headers: { Authorization: `Bearer ${accessToken}` },
-	})
-	if (result.isErr()) {
-		return json({ error: ApiError.Internal }, { status: 500 })
+	try {
+		const res = await fetchApi<{ fileId: string }>(
+			`/blogs/${params.blogSlug}/files`,
+			{
+				method: "GET",
+				headers: { Authorization: `Bearer ${accessToken}` },
+			},
+		)
+		return json(res)
+	} catch (error) {
+		if (error === ApiError.Unauthorized) {
+			redirectToLoginPage()
+		} else {
+			return json({ error: ApiError.Internal }, { status: 500 })
+		}
 	}
-
-	return json(result.value)
 }
 
 export async function action({ request, params }: ActionFunctionArgs) {
@@ -37,17 +45,21 @@ export async function action({ request, params }: ActionFunctionArgs) {
 
 	const formData = await unstable_parseMultipartFormData(request, uploadHandler)
 
-	const result = await fetchApi<UploadResult>(
-		`/blogs/${params.blogSlug}/files`,
-		{
-			method: "POST",
-			body: formData,
-			headers: { Authorization: `Bearer ${accessToken}` },
-		},
-	)
-	if (result.isErr()) {
-		return json({ error: ApiError.Internal }, { status: 500 })
+	try {
+		const res = await fetchApi<UploadResult>(
+			`/blogs/${params.blogSlug}/files`,
+			{
+				method: "POST",
+				body: formData,
+				headers: { Authorization: `Bearer ${accessToken}` },
+			},
+		)
+		return json(res)
+	} catch (error) {
+		if (error === ApiError.Unauthorized) {
+			redirectToLoginPage()
+		} else {
+			return json({ error: ApiError.Internal }, { status: 500 })
+		}
 	}
-
-	return json(result.value)
 }

@@ -1,7 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node"
 import { Form, json, redirect } from "@remix-run/react"
 import { useEffect, useRef, useState } from "react"
-import { authenticate } from "~/auth"
+import { authenticate, redirectToLoginPage } from "~/auth"
 import type { Blog } from "~/blog/blog"
 import { Button } from "~/components/button"
 import { ApiError } from "~/error"
@@ -76,21 +76,19 @@ export async function action({ request }: ActionFunctionArgs) {
 	const formData = await request.formData()
 	const newBlogSlug = formData.get("blogSlug")
 
-	const result = await fetchApi<Blog>(`/blogs/${newBlogSlug}`, {
-		method: "PUT",
-		headers: {
-			Authorization: `Bearer ${accessToken}`,
-		},
-	})
-	if (result.isErr()) {
-		switch (result.error) {
-			case ApiError.Unauthorized:
-				return redirect("/login")
-
-			default:
-				return json({ error: result.error })
+	try {
+		const createdBlog = await fetchApi<Blog>(`/blogs/${newBlogSlug}`, {
+			method: "PUT",
+			headers: {
+				Authorization: `Bearer ${accessToken}`,
+			},
+		})
+		return redirect(`/blogs/${createdBlog.slug}/dashboard`, { headers })
+	} catch (error) {
+		if (error === ApiError.Unauthorized) {
+			redirectToLoginPage()
+		} else {
+			return json({ error: ApiError.Internal }, { status: 500 })
 		}
 	}
-
-	return redirect(`/blogs/${result.value.slug}/dashboard`, { headers })
 }

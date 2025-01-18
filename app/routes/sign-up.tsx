@@ -9,6 +9,8 @@ import {
 	deriveInitialKeys,
 	saveSymmetricKeyInSessionStorage,
 } from "~/crypt"
+import { ApiError } from "~/error"
+import { fetchApi } from "~/fetch-api"
 import { saveEmail, saveProtectedSymmetricKey } from "~/local-storage"
 import { commitSession, getSession } from "~/sessions"
 
@@ -163,23 +165,27 @@ export default function SignUpPage() {
 
 export async function action({ request }: ActionFunctionArgs) {
 	const form = await request.formData()
-	const res = await fetch(`${process.env.API_URL}/sign-up`, {
-		method: "POST",
-		body: form,
-	})
 
-	const tokens: SignUpResponse = await res.json()
-	const session = await getSession(request.headers.get("Cookie"))
-	session.set("accessToken", tokens.accessToken)
-	session.set("refreshToken", tokens.refreshToken)
-	session.set("expiresAtUnixMs", tokens.expiresAtUnixMs)
+	try {
+		const tokens = await fetchApi<SignUpResponse>("/sign-up", {
+			method: "POST",
+			body: form,
+		})
 
-	return json(
-		{},
-		{
-			headers: {
-				"Set-Cookie": await commitSession(session),
+		const session = await getSession(request.headers.get("Cookie"))
+		session.set("accessToken", tokens.accessToken)
+		session.set("refreshToken", tokens.refreshToken)
+		session.set("expiresAtUnixMs", tokens.expiresAtUnixMs)
+
+		return json(
+			{},
+			{
+				headers: {
+					"Set-Cookie": await commitSession(session),
+				},
 			},
-		},
-	)
+		)
+	} catch (error) {
+		return json({ error: ApiError.Internal }, { status: 500 })
+	}
 }

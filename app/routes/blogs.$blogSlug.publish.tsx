@@ -1,13 +1,9 @@
 import * as crypto from "node:crypto"
-import {
-	type ActionFunctionArgs,
-	type LoaderFunctionArgs,
-	redirect,
-} from "@remix-run/node"
-import { json, useFetcher, useLoaderData, useParams } from "@remix-run/react"
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node"
+import { json, useFetcher, useLoaderData } from "@remix-run/react"
 import { TextDecoder } from "@zxing/text-encoding"
 import { useRef } from "react"
-import { authenticate } from "~/auth"
+import { authenticate, redirectToLoginPage } from "~/auth"
 import type { Blog } from "~/blog/blog"
 import type { NonEmptyBlogPost } from "~/blog/post"
 import { Button } from "~/components/button"
@@ -38,25 +34,27 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 
 	const headers = { Authorization: `Bearer ${accessToken}` }
 
-	const [blogResult, postResult] = await Promise.all([
-		fetchApi<Blog>(`/blogs/${params.blogSlug}`, { headers }),
-		fetchApi<NonEmptyBlogPost[]>(
-			`/blogs/${params.blogSlug}/posts?filter-empty=true`,
-			{
-				headers,
-			},
-		),
-	])
-	if (blogResult.isErr() || postResult.isErr()) {
-		return json({ error: ApiError.Internal }, { status: 500 })
+	try {
+		const [blog, nonEmptyBlogPosts] = await Promise.all([
+			fetchApi<Blog>(`/blogs/${params.blogSlug}`, { headers }),
+			fetchApi<NonEmptyBlogPost[]>(
+				`/blogs/${params.blogSlug}/posts?filter-empty=true`,
+				{
+					headers,
+				},
+			),
+		])
+		return json({
+			blog,
+			posts: nonEmptyBlogPosts,
+		})
+	} catch (error) {
+		if (error === ApiError.Unauthorized) {
+			redirectToLoginPage()
+		} else {
+			return json({ error: ApiError.Internal }, { status: 500 })
+		}
 	}
-
-	const blog = blogResult.value
-
-	return json({
-		blog,
-		posts: postResult.value,
-	})
 }
 
 export default function PublishOverviewPage() {
@@ -213,24 +211,23 @@ export async function action({ params, request }: ActionFunctionArgs) {
 	form.set("timestamp", signatureContent.timestamp.toString())
 	form.set("signature", signature)
 
-	const result = await fetchApi<PublishBlogResponse>(
-		`/blogs/${params.blogSlug}/publish`,
-		{
-			method: "POST",
-			body: form,
-			headers: {
-				Authorization: `Bearer ${accessToken}`,
+	try {
+		const publishResult = await fetchApi<PublishBlogResponse>(
+			`/blogs/${params.blogSlug}/publish`,
+			{
+				method: "POST",
+				body: form,
+				headers: {
+					Authorization: `Bearer ${accessToken}`,
+				},
 			},
-		},
-	)
-	if (result.isErr()) {
-		switch (result.error) {
-			case ApiError.Unauthorized:
-				return redirect("/login")
-			default:
-				return json({ error: result.error })
+		)
+		return json(publishResult)
+	} catch (error) {
+		if (error === ApiError.Unauthorized) {
+			redirectToLoginPage()
+		} else {
+			return json({ error: ApiError.Internal }, { status: 500 })
 		}
 	}
-
-	return json(result.value)
 }
