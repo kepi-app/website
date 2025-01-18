@@ -1,28 +1,29 @@
 import {
 	type ActionFunctionArgs,
-	json,
 	type LoaderFunctionArgs,
+	json,
 	redirect,
 } from "@remix-run/node"
 import { useFetcher, useNavigate } from "@remix-run/react"
 import clsx from "clsx"
-import { useEffect, useId, useRef, useState } from "react"
 import _sodium from "libsodium-wrappers-sumo"
+import { useEffect, useId, useRef, useState } from "react"
+import toast from "react-hot-toast"
 import { Button } from "~/components/button"
 import { Logo } from "~/components/logo"
 import {
 	type Base64EncodedCipher,
+	type HashResult,
+	SymmetricKey,
 	decrypt,
 	deriveStretchedMasterKey,
 	hashMasterPassword,
 	saveSymmetricKeyInSessionStorage,
-	SymmetricKey,
 } from "~/crypt"
-import { fetchApi } from "~/fetch-api"
 import { ApiError } from "~/error"
-import { commitSession, getSession } from "~/sessions"
-import toast from "react-hot-toast"
+import { fetchApi } from "~/fetch-api"
 import { saveEmail, saveProtectedSymmetricKey } from "~/local-storage"
+import { commitSession, getSession } from "~/sessions"
 
 interface LoginResponse {
 	email: string
@@ -94,7 +95,12 @@ export default function LoginPage() {
 			await _sodium.ready
 			const sodium = _sodium
 
-			const hashResult = await hashMasterPassword(email, password)
+			// HACK: wrapping the call to hashMasterPassword in setTimeout to prevent it from freezing the ui
+			const hashResult = await new Promise<HashResult>((resolve, reject) => {
+				setTimeout(() => {
+					hashMasterPassword(email, password).then(resolve).catch(reject)
+				}, 0)
+			})
 			stretchedMasterKey.current = await deriveStretchedMasterKey(
 				hashResult.masterKey.hash,
 			)
@@ -183,7 +189,11 @@ export default function LoginPage() {
 						/>
 					</div>
 
-					<Button type="submit" containerClassName="mt-12 w-full">
+					<Button
+						type="submit"
+						containerClassName="mt-12 w-full"
+						disabled={isSubmitting}
+					>
 						Login
 					</Button>
 				</fetcher.Form>
