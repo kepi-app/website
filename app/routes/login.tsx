@@ -198,6 +198,7 @@ export async function action({ request }: ActionFunctionArgs) {
 	const result = await fetchApi<LoginResponse>("/auth/login", {
 		method: "POST",
 		body: form,
+		redirectToLogin: false,
 	})
 	if (result.isErr()) {
 		switch (result.error) {
