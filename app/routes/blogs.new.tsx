@@ -83,7 +83,7 @@ export async function action({ request }: ActionFunctionArgs) {
 				Authorization: `Bearer ${accessToken}`,
 			},
 		})
-		return redirect(`/blogs/${createdBlog.slug}/dashboard`, { headers })
+		return redirect(`/blogs/${createdBlog.slug}`, { headers })
 	} catch (error) {
 		if (error === ApiError.Unauthorized) {
 			redirectToLoginPage()
