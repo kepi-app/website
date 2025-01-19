@@ -2,8 +2,8 @@ import {
 	type ActionFunctionArgs,
 	type LoaderFunctionArgs,
 	data,
-} from "@remix-run/node"
-import { useFetcher, useLoaderData } from "@remix-run/react"
+} from "react-router"
+import { useFetcher, useLoaderData } from "react-router"
 import { type ChangeEvent, useEffect, useRef } from "react"
 import { authenticate, redirectToLoginPage } from "~/auth"
 import type { Blog } from "~/blog/blog"

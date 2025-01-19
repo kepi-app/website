@@ -8,11 +8,14 @@ class InternalError extends Error {
 
 class NotLoggedInError extends Error {
 	constructor() {
-		super("user is not logged in");
+		super("user is not logged in")
 	}
 }
 
-function promiseOrThrow<T, TErr>(promise: T | Promise<T>, mapException?: (error: unknown) => TErr): T | CheckedPromise<T, TErr> {
+function promiseOrThrow<T, TErr>(
+	promise: T | Promise<T>,
+	mapException?: (error: unknown) => TErr,
+): T | CheckedPromise<T, TErr> {
 	try {
 		return promise
 	} catch (e) {
@@ -23,7 +26,10 @@ function promiseOrThrow<T, TErr>(promise: T | Promise<T>, mapException?: (error:
 	}
 }
 
-function tryOrThrow<T, TErr>(cb: () => T, mapException?: (error: unknown) => TErr): T {
+function tryOrThrow<T, TErr>(
+	cb: () => T,
+	mapException?: (error: unknown) => TErr,
+): T {
 	try {
 		return cb()
 	} catch (e) {

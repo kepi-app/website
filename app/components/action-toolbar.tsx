@@ -1,6 +1,6 @@
 import type React from "react"
 import type { DetailedHTMLProps, HTMLAttributes } from "react"
-import clsx from "clsx";
+import clsx from "clsx"
 
 function ActionToolbar({ children }: React.PropsWithChildren) {
 	return (

@@ -1,4 +1,4 @@
-import { type LoaderFunctionArgs, data } from "@remix-run/node"
+import { type LoaderFunctionArgs, data } from "react-router"
 import { authenticate } from "~/auth"
 import { ApiError } from "~/error"
 import { fetchApiRaw } from "~/fetch-api"

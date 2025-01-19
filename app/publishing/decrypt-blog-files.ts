@@ -1,4 +1,3 @@
-import { TextDecoder } from "@zxing/text-encoding"
 import type { Blog } from "~/blog/blog"
 import {
 	type SymmetricKey,

@@ -1,4 +1,4 @@
-import { useNavigate } from "@remix-run/react"
+import { useNavigate } from "react-router"
 import React, { useContext, useEffect, useRef } from "react"
 import { type StateCreator, create, useStore } from "zustand"
 import { subscribeWithSelector } from "zustand/middleware"

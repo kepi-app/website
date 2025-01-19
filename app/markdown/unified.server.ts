@@ -1,10 +1,14 @@
 import { unified } from "unified"
-import {addClassNames, REHYPE_PLUGINS, REMARK_PLUGINS} from "~/markdown/plugins"
+import {
+	addClassNames,
+	REHYPE_PLUGINS,
+	REMARK_PLUGINS,
+} from "~/markdown/plugins"
 import remarkRehype from "remark-rehype"
-import remarkParse from "remark-parse";
-import rehypeStringify from "rehype-stringify";
-import rehypeMinifyWhitespace from "rehype-minify-whitespace";
-import rehypeMinifyAttributeWhitespace from "rehype-minify-attribute-whitespace";
+import remarkParse from "remark-parse"
+import rehypeStringify from "rehype-stringify"
+import rehypeMinifyWhitespace from "rehype-minify-whitespace"
+import rehypeMinifyAttributeWhitespace from "rehype-minify-attribute-whitespace"
 
 const markdownProcessor = unified()
 	.use(remarkParse)
@@ -15,7 +19,7 @@ const markdownProcessor = unified()
 	.use(rehypeMinifyAttributeWhitespace)
 	.use(rehypeStringify)
 	.use(addClassNames, {
-		pre: "hljs"
+		pre: "hljs",
 	})
 
 export { markdownProcessor }

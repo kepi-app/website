@@ -1,8 +1,10 @@
 import * as crypto from "node:crypto"
-import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node"
-import { useFetcher, useLoaderData } from "@remix-run/react"
-import { data } from "@remix-run/router/utils"
-import { TextDecoder } from "@zxing/text-encoding"
+import {
+	type ActionFunctionArgs,
+	type LoaderFunctionArgs,
+	data,
+} from "react-router"
+import { useFetcher, useLoaderData } from "react-router"
 import { useRef } from "react"
 import { authenticate, redirectToLoginPage } from "~/auth"
 import type { Blog } from "~/blog/blog"

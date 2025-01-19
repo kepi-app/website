@@ -2,7 +2,7 @@ import {
 	type ActionFunctionArgs,
 	type LoaderFunctionArgs,
 	data,
-} from "@remix-run/node"
+} from "react-router"
 import {
 	type ClientActionFunctionArgs,
 	Form,
@@ -10,7 +10,7 @@ import {
 	useFetcher,
 	useLoaderData,
 	useParams,
-} from "@remix-run/react"
+} from "react-router"
 import { useEffect } from "react"
 import toast from "react-hot-toast"
 import { create } from "zustand/react"

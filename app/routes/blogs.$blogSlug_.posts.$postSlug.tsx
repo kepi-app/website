@@ -2,8 +2,8 @@ import {
 	type ActionFunctionArgs,
 	type LoaderFunctionArgs,
 	data,
-} from "@remix-run/node"
-import { useFetcher, useLoaderData, useParams } from "@remix-run/react"
+} from "react-router"
+import { useFetcher, useLoaderData, useParams } from "react-router"
 import dayjs from "dayjs"
 import { useEffect, useRef } from "react"
 import { authenticate, redirectToLoginPage } from "~/auth"

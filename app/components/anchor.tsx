@@ -1,5 +1,5 @@
-import clsx from "clsx";
-import type { AnchorHTMLAttributes, DetailedHTMLProps } from "react";
+import clsx from "clsx"
+import type { AnchorHTMLAttributes, DetailedHTMLProps } from "react"
 
 function Anchor(
 	props: DetailedHTMLProps<
@@ -7,7 +7,7 @@ function Anchor(
 		HTMLAnchorElement
 	>,
 ) {
-	return <a {...props} className={clsx("underline", props.className)} />;
+	return <a {...props} className={clsx("underline", props.className)} />
 }
 
-export { Anchor };
+export { Anchor }

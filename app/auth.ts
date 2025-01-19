@@ -1,4 +1,4 @@
-import { type Session, redirect } from "@remix-run/node"
+import { type Session, redirect } from "react-router"
 import dayjs from "dayjs"
 import { type Result, err, ok, tryp } from "trycat"
 import { ApiError } from "./error"

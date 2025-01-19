@@ -1,4 +1,4 @@
-import { useNavigate } from "@remix-run/react"
+import { useNavigate } from "react-router"
 import clsx from "clsx"
 import { useCallback, useEffect, useRef, useState } from "react"
 import toast from "react-hot-toast"

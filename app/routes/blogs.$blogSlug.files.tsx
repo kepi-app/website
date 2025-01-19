@@ -2,9 +2,7 @@ import {
 	type ActionFunctionArgs,
 	type LoaderFunctionArgs,
 	data,
-	unstable_createMemoryUploadHandler,
-	unstable_parseMultipartFormData,
-} from "@remix-run/node"
+} from "react-router"
 import { authenticate, redirectToLoginPage } from "~/auth"
 import type { UploadResult } from "~/blog/upload"
 import { ApiError } from "~/error"
@@ -37,12 +35,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 	const headers = new Headers()
 	const accessToken = await authenticate(request, session, headers)
 
-	const uploadHandler = unstable_createMemoryUploadHandler({
-		filter: () => true,
-		maxPartSize: 10_000_000, // 10 MB
-	})
-
-	const formData = await unstable_parseMultipartFormData(request, uploadHandler)
+	const formData = await request.formData()
 
 	try {
 		return await fetchApi<UploadResult>(`/blogs/${params.blogSlug}/files`, {

@@ -1,9 +1,4 @@
-import {
-	Outlet,
-	useMatches,
-	useNavigate,
-	useParams,
-} from "@remix-run/react"
+import { Outlet, useMatches, useNavigate, useParams } from "react-router"
 import { Anchor } from "~/components/anchor"
 import { SmallButton } from "~/components/small-button"
 

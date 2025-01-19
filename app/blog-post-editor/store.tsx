@@ -1,4 +1,4 @@
-import { useNavigate } from "@remix-run/react"
+import { useNavigate } from "react-router"
 import React, { useContext, useEffect } from "react"
 import { useRef } from "react"
 import { useStore } from "zustand"

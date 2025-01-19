@@ -1,4 +1,4 @@
-import { useParams } from "@remix-run/react"
+import { useParams } from "react-router"
 import clsx from "clsx"
 import { ArrowLeft } from "lucide-react"
 import { forwardRef, useEffect, useRef } from "react"

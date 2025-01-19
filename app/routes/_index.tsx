@@ -1,4 +1,4 @@
-import type { MetaFunction } from "@remix-run/node"
+import type { MetaFunction } from "react-router"
 import { Logo } from "app/components/logo"
 
 export const meta: MetaFunction = () => {

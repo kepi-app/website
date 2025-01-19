@@ -1,5 +1,5 @@
-import { type LoaderFunctionArgs, redirect, data } from "@remix-run/node"
-import { useLoaderData } from "@remix-run/react"
+import { type LoaderFunctionArgs, redirect, data } from "react-router"
+import { useLoaderData } from "react-router"
 import { authenticate, redirectToLoginPage } from "~/auth"
 import type { Blog } from "~/blog/blog"
 import { Anchor } from "~/components/anchor"

@@ -1,4 +1,4 @@
-import { redirect } from "@remix-run/node"
+import { redirect } from "react-router"
 import { type Result, err, ok } from "trycat"
 import { type CheckedPromise, promiseOrThrow } from "~/errors"
 import { ApiError } from "./error"
