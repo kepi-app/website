@@ -1,13 +1,8 @@
 import clsx from "clsx"
-import type { AnchorHTMLAttributes, DetailedHTMLProps } from "react"
+import { Link, type LinkProps } from "react-router"
 
-function Anchor(
-	props: DetailedHTMLProps<
-		AnchorHTMLAttributes<HTMLAnchorElement>,
-		HTMLAnchorElement
-	>,
-) {
-	return <a {...props} className={clsx("underline", props.className)} />
+function Anchor(props: LinkProps & React.RefAttributes<HTMLAnchorElement>) {
+	return <Link {...props} className={clsx("underline", props.className)} />
 }
 
 export { Anchor }

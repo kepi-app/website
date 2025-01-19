@@ -201,7 +201,7 @@ export default function LoginPage() {
 
 				<p className="text-xs text-center opacity-80 col-span-3 pt-8 my-4 leading-loose">
 					don't have an account?{" "}
-					<Anchor href="/sign-up" className="font-bold">
+					<Anchor to="/sign-up" className="font-bold">
 						click here to sign up
 					</Anchor>
 				</p>

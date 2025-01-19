@@ -40,7 +40,7 @@ const MainEditor = forwardRef<MarkdownEditorRef>((_, ref) => {
 	return (
 		<>
 			<div className={clsx("transition-all mb-8", { "opacity-0": isFocused })}>
-				<Anchor href={`/blogs/${params.blogSlug}/posts`} className="opacity-80">
+				<Anchor to={`/blogs/${params.blogSlug}/posts`} className="opacity-80">
 					<ArrowLeft className="inline align-sub" size={16} /> All posts
 				</Anchor>
 

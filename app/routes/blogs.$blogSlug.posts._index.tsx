@@ -166,7 +166,7 @@ function BlogPostListItem({
 		<li className="flex flex-row justify-between">
 			<div className="flex items-center space-x-2">
 				<BlogPostListItemCheckbox post={post} />
-				<Anchor href={`/blogs/${blogSlug}/posts/${post.slug}`}>
+				<Anchor to={`/blogs/${blogSlug}/posts/${post.slug}`}>
 					{post.title}
 				</Anchor>
 			</div>
