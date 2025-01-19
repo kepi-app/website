@@ -1,7 +1,7 @@
 import {
 	type ActionFunctionArgs,
 	type LoaderFunctionArgs,
-	json,
+	data,
 	unstable_createMemoryUploadHandler,
 	unstable_parseMultipartFormData,
 } from "@remix-run/node"
@@ -16,19 +16,18 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	const accessToken = await authenticate(request, session)
 
 	try {
-		const res = await fetchApi<{ fileId: string }>(
+		return await fetchApi<{ fileId: string }>(
 			`/blogs/${params.blogSlug}/files`,
 			{
 				method: "GET",
 				headers: { Authorization: `Bearer ${accessToken}` },
 			},
 		)
-		return json(res)
 	} catch (error) {
 		if (error === ApiError.Unauthorized) {
 			redirectToLoginPage()
 		} else {
-			return json({ error: ApiError.Internal }, { status: 500 })
+			throw data({ error: ApiError.Internal }, { status: 500 })
 		}
 	}
 }
@@ -46,20 +45,16 @@ export async function action({ request, params }: ActionFunctionArgs) {
 	const formData = await unstable_parseMultipartFormData(request, uploadHandler)
 
 	try {
-		const res = await fetchApi<UploadResult>(
-			`/blogs/${params.blogSlug}/files`,
-			{
-				method: "POST",
-				body: formData,
-				headers: { Authorization: `Bearer ${accessToken}` },
-			},
-		)
-		return json(res)
+		return await fetchApi<UploadResult>(`/blogs/${params.blogSlug}/files`, {
+			method: "POST",
+			body: formData,
+			headers: { Authorization: `Bearer ${accessToken}` },
+		})
 	} catch (error) {
 		if (error === ApiError.Unauthorized) {
 			redirectToLoginPage()
 		} else {
-			return json({ error: ApiError.Internal }, { status: 500 })
+			throw data({ error: ApiError.Internal }, { status: 500 })
 		}
 	}
 }

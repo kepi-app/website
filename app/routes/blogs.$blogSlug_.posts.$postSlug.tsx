@@ -1,5 +1,9 @@
-import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node"
-import { json, useFetcher, useLoaderData, useParams } from "@remix-run/react"
+import {
+	type ActionFunctionArgs,
+	type LoaderFunctionArgs,
+	data,
+} from "@remix-run/node"
+import { useFetcher, useLoaderData, useParams } from "@remix-run/react"
 import dayjs from "dayjs"
 import { useEffect, useRef } from "react"
 import { authenticate, redirectToLoginPage } from "~/auth"
@@ -33,18 +37,17 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	const session = await getSession(request.headers.get("Cookie"))
 	const accessToken = await authenticate(request, session)
 	try {
-		const blogPost = await fetchApi<BlogPost>(
+		return await fetchApi<BlogPost>(
 			`/blogs/${params.blogSlug}/posts/${params.postSlug}`,
 			{
 				headers: { Authorization: `Bearer ${accessToken}` },
 			},
 		)
-		return json(blogPost)
 	} catch (error) {
 		if (error === ApiError.Unauthorized) {
 			redirectToLoginPage()
 		} else {
-			return json({ error: ApiError.Internal }, { status: 500 })
+			throw data({ error: ApiError.Internal }, { status: 500 })
 		}
 	}
 }
@@ -322,7 +325,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
 
 	const updateForm = await request.formData()
 	try {
-		const updated = await fetchApi<Base64EncodedCipher>(
+		return await fetchApi<Base64EncodedCipher>(
 			`/blogs/${params.blogSlug}/posts/${params.postSlug}`,
 			{
 				method: "PATCH",
@@ -330,12 +333,11 @@ export async function action({ params, request }: ActionFunctionArgs) {
 				headers: { Authorization: `Bearer ${accessToken}` },
 			},
 		)
-		return json(updated)
 	} catch (error) {
 		if (error === ApiError.Unauthorized) {
 			redirectToLoginPage()
 		} else {
-			return json({ error: ApiError.Internal }, { status: 500 })
+			throw data({ error: ApiError.Internal }, { status: 500 })
 		}
 	}
 }

@@ -20,7 +20,7 @@ async function fetchApi<T = undefined>(
 	const res = await promiseOrThrow(
 		fetch(`${process.env.API_URL}${endpoint}`, init),
 		(error) => {
-			console.error(error)
+			console.error("fetchApi -> fetch error", error)
 			return ApiError.Network
 		},
 	)
@@ -29,9 +29,13 @@ async function fetchApi<T = undefined>(
 			throw ApiError.Unauthorized
 		case 409:
 			throw ApiError.Conflict
+		case 204:
+			// in case of 204 response, we trust the call site that it knows this returns nothing
+			// @ts-ignore
+			return undefined
 		case 200: {
 			return promiseOrThrow(res.json(), (error) => {
-				console.error(error)
+				console.error("fetchApi decode error", error)
 				return ApiError.Internal
 			})
 		}

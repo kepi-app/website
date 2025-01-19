@@ -1,8 +1,11 @@
-import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node"
+import {
+	type ActionFunctionArgs,
+	type LoaderFunctionArgs,
+	data,
+} from "@remix-run/node"
 import {
 	type ClientActionFunctionArgs,
 	Form,
-	json,
 	redirect,
 	useFetcher,
 	useLoaderData,
@@ -69,12 +72,12 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 				},
 			},
 		)
-		return json(allBlogPosts)
+		return allBlogPosts
 	} catch (error) {
 		if (error === ApiError.Unauthorized) {
 			redirectToLoginPage()
 		} else {
-			throw json({ error: ApiError.Internal }, { status: 500 })
+			throw data({ error: ApiError.Internal }, { status: 500 })
 		}
 	}
 }
@@ -350,7 +353,7 @@ async function createPost(
 	const form = await request.formData()
 	const postTitle = form.get("postTitle")
 	if (!postTitle || typeof postTitle !== "string") {
-		return json({ error: ApiError.BadRequest }, { status: 400 })
+		throw data({ error: ApiError.BadRequest }, { status: 400 })
 	}
 
 	const postSlug = postTitle.replace(/ /g, "-")
@@ -375,9 +378,9 @@ async function createPost(
 				redirectToLoginPage()
 				break
 			case ApiError.Conflict:
-				return json({ error: ApiError.Conflict }, { status: 409 })
+				throw data({ error: ApiError.Conflict }, { status: 409 })
 			default:
-				return json({ error: ApiError.Internal }, { status: 500 })
+				throw data({ error: ApiError.Internal }, { status: 500 })
 		}
 	}
 }
@@ -391,17 +394,18 @@ async function deletePosts(
 
 	try {
 		if (slugs.length <= 0) {
-			return json({ error: ApiError.BadRequest }, { status: 400 })
+			throw data({ error: ApiError.BadRequest }, { status: 400 })
 		}
 		await fetchApi(`/blogs/${params.blogSlug}/posts?slugs=${slugs.join(",")}`, {
 			method: "DELETE",
 			headers: { Authorization: `Bearer ${accessToken}` },
 		})
+		return null
 	} catch (error) {
 		if (error === ApiError.Unauthorized) {
 			redirectToLoginPage()
 		} else {
-			return json({ error: ApiError.Internal }, { status: 500 })
+			throw data({ error: ApiError.Internal }, { status: 500 })
 		}
 	}
 }

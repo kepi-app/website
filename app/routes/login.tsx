@@ -1,10 +1,10 @@
 import {
 	type ActionFunctionArgs,
 	type LoaderFunctionArgs,
-	json,
 	redirect,
 } from "@remix-run/node"
 import { useFetcher, useNavigate } from "@remix-run/react"
+import { data } from "@remix-run/router/utils"
 import clsx from "clsx"
 import _sodium from "libsodium-wrappers-sumo"
 import { useEffect, useId, useRef, useState } from "react"
@@ -224,15 +224,15 @@ export async function action({ request }: ActionFunctionArgs) {
 		session.set("refreshToken", response.refreshToken)
 		session.set("expiresAtUnixMs", response.expiresAtUnixMs)
 
-		return json(response, {
+		return data(response, {
 			headers: {
 				"Set-Cookie": await commitSession(session),
 			},
 		})
 	} catch (err) {
 		if ((err as ApiError) === ApiError.Unauthorized) {
-			return json({ error: ApiError.Unauthorized }, { status: 401 })
+			return data({ error: ApiError.Unauthorized }, { status: 401 })
 		}
-		return json({ error: ApiError.Internal }, { status: 500 })
+		return data({ error: ApiError.Internal }, { status: 500 })
 	}
 }

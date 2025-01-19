@@ -1,5 +1,9 @@
-import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node"
-import { Form, json, redirect } from "@remix-run/react"
+import {
+	type ActionFunctionArgs,
+	type LoaderFunctionArgs,
+	data,
+} from "@remix-run/node"
+import { Form, redirect } from "@remix-run/react"
 import { useEffect, useRef, useState } from "react"
 import { authenticate, redirectToLoginPage } from "~/auth"
 import type { Blog } from "~/blog/blog"
@@ -11,7 +15,7 @@ import { getSession } from "~/sessions"
 export async function loader({ request }: LoaderFunctionArgs) {
 	const session = await getSession(request.headers.get("Cookie"))
 	await authenticate(request, session)
-	return json({})
+	return {}
 }
 
 export default function NewBlogPage() {
@@ -88,7 +92,7 @@ export async function action({ request }: ActionFunctionArgs) {
 		if (error === ApiError.Unauthorized) {
 			redirectToLoginPage()
 		} else {
-			return json({ error: ApiError.Internal }, { status: 500 })
+			throw data({ error: ApiError.Internal }, { status: 500 })
 		}
 	}
 }

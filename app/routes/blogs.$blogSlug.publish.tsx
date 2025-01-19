@@ -1,6 +1,7 @@
 import * as crypto from "node:crypto"
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node"
-import { json, useFetcher, useLoaderData } from "@remix-run/react"
+import { useFetcher, useLoaderData } from "@remix-run/react"
+import { data } from "@remix-run/router/utils"
 import { TextDecoder } from "@zxing/text-encoding"
 import { useRef } from "react"
 import { authenticate, redirectToLoginPage } from "~/auth"
@@ -44,15 +45,15 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 				},
 			),
 		])
-		return json({
+		return {
 			blog,
 			posts: nonEmptyBlogPosts,
-		})
+		}
 	} catch (error) {
 		if (error === ApiError.Unauthorized) {
 			redirectToLoginPage()
 		} else {
-			return json({ error: ApiError.Internal }, { status: 500 })
+			throw data({ error: ApiError.Internal }, { status: 500 })
 		}
 	}
 }
@@ -162,7 +163,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
 	const form = await request.formData()
 	const homeMd = form.get("homeContentMarkdown")
 	if (typeof homeMd !== "string") {
-		return json({ error: "invalid home markdown received" }, { status: 401 })
+		return data({ error: "invalid home markdown received" }, { status: 401 })
 	}
 
 	const contentHasher = crypto.createHash("SHA256")
@@ -180,7 +181,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
 
 	for (const md of form.getAll("postMarkdowns")) {
 		if (typeof md !== "string") {
-			return json({ error: "invalid post content received" }, { status: 401 })
+			return data({ error: "invalid post content received" }, { status: 401 })
 		}
 		const processed = await markdownProcessor.process(md)
 		const html = String(processed).trim()
@@ -212,7 +213,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
 	form.set("signature", signature)
 
 	try {
-		const publishResult = await fetchApi<PublishBlogResponse>(
+		return await fetchApi<PublishBlogResponse>(
 			`/blogs/${params.blogSlug}/publish`,
 			{
 				method: "POST",
@@ -222,12 +223,11 @@ export async function action({ params, request }: ActionFunctionArgs) {
 				},
 			},
 		)
-		return json(publishResult)
 	} catch (error) {
 		if (error === ApiError.Unauthorized) {
 			redirectToLoginPage()
 		} else {
-			return json({ error: ApiError.Internal }, { status: 500 })
+			return data({ error: ApiError.Internal }, { status: 500 })
 		}
 	}
 }

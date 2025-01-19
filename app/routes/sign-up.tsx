@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs } from "@remix-run/node"
-import { json, useFetcher, useNavigate } from "@remix-run/react"
+import { data, useFetcher, useNavigate } from "@remix-run/react"
 import sodium from "libsodium-wrappers"
 import { useEffect, useId, useRef } from "react"
 import { Button } from "~/components/button"
@@ -177,7 +177,7 @@ export async function action({ request }: ActionFunctionArgs) {
 		session.set("refreshToken", tokens.refreshToken)
 		session.set("expiresAtUnixMs", tokens.expiresAtUnixMs)
 
-		return json(
+		return data(
 			{},
 			{
 				headers: {
@@ -186,6 +186,6 @@ export async function action({ request }: ActionFunctionArgs) {
 			},
 		)
 	} catch (error) {
-		return json({ error: ApiError.Internal }, { status: 500 })
+		throw data({ error: ApiError.Internal }, { status: 500 })
 	}
 }

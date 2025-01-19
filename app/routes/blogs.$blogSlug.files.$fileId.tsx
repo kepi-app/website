@@ -1,4 +1,4 @@
-import { json, type LoaderFunctionArgs } from "@remix-run/node"
+import { type LoaderFunctionArgs, data } from "@remix-run/node"
 import { authenticate } from "~/auth"
 import { ApiError } from "~/error"
 import { fetchApiRaw } from "~/fetch-api"
@@ -15,7 +15,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		},
 	)
 	if (result.isErr()) {
-		return json({ error: ApiError.Internal }, { status: 500 })
+		throw data({ error: ApiError.Internal }, { status: 500 })
 	}
 
 	const res = result.value

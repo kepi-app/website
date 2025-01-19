@@ -1,4 +1,4 @@
-import { type LoaderFunctionArgs, json, redirect } from "@remix-run/node"
+import { type LoaderFunctionArgs, redirect, data } from "@remix-run/node"
 import { useLoaderData } from "@remix-run/react"
 import { authenticate, redirectToLoginPage } from "~/auth"
 import type { Blog } from "~/blog/blog"
@@ -18,12 +18,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		if (blogs.length <= 0) {
 			return redirect("/blogs/new")
 		}
-		return json(blogs)
+		return blogs
 	} catch (error) {
 		if (error === ApiError.Unauthorized) {
 			redirectToLoginPage()
 		} else {
-			return json({ error: ApiError.Internal }, { status: 500 })
+			throw data({ error: ApiError.Internal }, { status: 500 })
 		}
 	}
 }

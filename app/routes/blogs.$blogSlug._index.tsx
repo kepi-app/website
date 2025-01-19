@@ -1,5 +1,9 @@
-import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node"
-import { json, useFetcher, useLoaderData } from "@remix-run/react"
+import {
+	type ActionFunctionArgs,
+	type LoaderFunctionArgs,
+	data,
+} from "@remix-run/node"
+import { useFetcher, useLoaderData } from "@remix-run/react"
 import { type ChangeEvent, useEffect, useRef } from "react"
 import { authenticate, redirectToLoginPage } from "~/auth"
 import type { Blog } from "~/blog/blog"
@@ -21,12 +25,12 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 				Authorization: `Bearer ${accessToken}`,
 			},
 		})
-		return json(res)
+		return res
 	} catch (error) {
 		if (error === ApiError.Unauthorized) {
 			redirectToLoginPage()
 		} else {
-			return json({ error: ApiError.Internal }, { status: 500 })
+			throw data({ error: ApiError.Internal }, { status: 500 })
 		}
 	}
 }
@@ -119,12 +123,12 @@ export async function action({ params, request }: ActionFunctionArgs) {
 				Authorization: `Bearer ${accessToken}`,
 			},
 		})
-		return json(res)
+		return data(res)
 	} catch (error) {
 		if (error === ApiError.Unauthorized) {
 			redirectToLoginPage()
 		} else {
-			return json({ error: ApiError.Internal }, { status: 500 })
+			return data({ error: ApiError.Internal }, { status: 500 })
 		}
 	}
 }
