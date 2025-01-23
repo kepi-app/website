@@ -37,6 +37,11 @@ interface BlogPostDashboardStore {
 	deselectBlogPost: (post: BlogPost) => void
 }
 
+/**
+ * This header is set whenever the redirect is to the newly created blog post.
+ */
+const HEADER_NEW_BLOG_POST_REDIRECT = "Kepi-New-Blog-Post-Redirect"
+
 const useStore = create<BlogPostDashboardStore>()((set) => ({
 	mode: BlogPostDashboardMode.Display,
 	selectedBlogPosts: new Set(),
@@ -330,19 +335,32 @@ export async function clientAction({
 }: ClientActionFunctionArgs) {
 	try {
 		const data = await serverAction()
-		if (request.method === "DELETE") {
-			toast.success("Posts deleted successfully!")
-			useStore.setState((state) => {
-				const selected = state.selectedBlogPosts
-				selected.clear()
-				return {
-					mode: BlogPostDashboardMode.Display,
-					selectedBlogPosts: selected,
-				}
-			})
+		switch (request.method) {
+			case "DELETE":
+				toast.success("Posts deleted successfully!")
+				useStore.setState((state) => {
+					const selected = state.selectedBlogPosts
+					selected.clear()
+					return {
+						mode: BlogPostDashboardMode.Display,
+						selectedBlogPosts: selected,
+					}
+				})
+				break
+
+			default:
+				break
 		}
 		return data
 	} catch (error) {
+		// redirect response is thrown, so need to make sure they are re-thrown
+		// to not block the redirect
+		if (error instanceof Response) {
+			if (error.headers.has(HEADER_NEW_BLOG_POST_REDIRECT)) {
+				useStore.setState({ mode: BlogPostDashboardMode.Display })
+			}
+			throw error
+		}
 		console.error(error)
 	}
 }
@@ -384,6 +402,12 @@ async function createPost(
 				body: postForm,
 			},
 		)
+
+		// this header is used to differentiate a redirect to the newly created blog post page
+		// vs other redirects.
+		// the client uses this to do some final cleanup before redirecting
+		headers.set(HEADER_NEW_BLOG_POST_REDIRECT, "true")
+
 		return redirect(`/blogs/${params.blogSlug}/posts/${createdPost.slug}`, {
 			headers,
 		})
