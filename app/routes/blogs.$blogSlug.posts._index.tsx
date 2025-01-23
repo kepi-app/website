@@ -35,6 +35,7 @@ interface BlogPostDashboardStore {
 	setMode: (mode: BlogPostDashboardMode) => void
 	selectBlogPost: (post: BlogPost) => void
 	deselectBlogPost: (post: BlogPost) => void
+	clearSelections: () => void
 }
 
 /**
@@ -61,6 +62,7 @@ const useStore = create<BlogPostDashboardStore>()((set) => ({
 			selected.delete(post.slug)
 			return { selectedBlogPosts: selected }
 		}),
+	clearSelections: () => set({ selectedBlogPosts: new Set() }),
 }))
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
@@ -119,10 +121,14 @@ function ManagePostsButton() {
 	)
 	const isDisabled = useStore((state) => state.isDeleting)
 	const setMode = useStore((state) => state.setMode)
+	const clearSelections = useStore((state) => state.clearSelections)
 	return (
 		<SmallButton
 			disabled={isDisabled}
 			onClick={() => {
+				if (isInManageMode) {
+					clearSelections()
+				}
 				setMode(
 					isInManageMode
 						? BlogPostDashboardMode.Display
