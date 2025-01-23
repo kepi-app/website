@@ -1,18 +1,17 @@
+import type React from "react"
+import { useEffect } from "react"
+import toast from "react-hot-toast"
 import {
 	type ActionFunctionArgs,
-	type LoaderFunctionArgs,
-	data,
-} from "react-router"
-import {
 	type ClientActionFunctionArgs,
 	Form,
+	type LoaderFunctionArgs,
+	data,
 	redirect,
 	useFetcher,
 	useLoaderData,
 	useParams,
 } from "react-router"
-import { useEffect } from "react"
-import toast from "react-hot-toast"
 import { create } from "zustand/react"
 import { authenticate, redirectToLoginPage } from "~/auth"
 import type { BlogPost } from "~/blog/post"
@@ -64,15 +63,11 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	const accessToken = await authenticate(request, session)
 
 	try {
-		const allBlogPosts = await fetchApi<BlogPost[]>(
-			`/blogs/${params.blogSlug}/posts`,
-			{
-				headers: {
-					Authorization: `Bearer ${accessToken}`,
-				},
+		return await fetchApi<BlogPost[]>(`/blogs/${params.blogSlug}/posts`, {
+			headers: {
+				Authorization: `Bearer ${accessToken}`,
 			},
-		)
-		return allBlogPosts
+		})
 	} catch (error) {
 		if (error === ApiError.Unauthorized) {
 			redirectToLoginPage()
@@ -166,7 +161,7 @@ function BlogPostListItem({
 		<li className="flex flex-row justify-between">
 			<div className="flex items-center space-x-2">
 				<BlogPostListItemCheckbox post={post} />
-				<Anchor to={`/blogs/${blogSlug}/posts/${post.slug}`}>
+				<Anchor prefetch="intent" to={`/blogs/${blogSlug}/posts/${post.slug}`}>
 					{post.title}
 				</Anchor>
 			</div>
@@ -287,6 +282,15 @@ function NewPostInput() {
 
 	if (!isVisible) return null
 
+	function onInvalidTitleInput(event: React.ChangeEvent<HTMLInputElement>) {
+		event.currentTarget.setCustomValidity("")
+		if (!event.currentTarget.validity.valid) {
+			event.currentTarget.setCustomValidity(
+				"Please provide a title for the post.",
+			)
+		}
+	}
+
 	return (
 		<Form
 			method="POST"
@@ -294,12 +298,14 @@ function NewPostInput() {
 		>
 			<div className="flex flex-row items-center justify-between mb-2">
 				<input
+					required
 					// biome-ignore lint/a11y/noAutofocus: it makes sense to autofocus to the title input when screenreader users click on add new post
 					autoFocus
 					type="text"
 					name="postTitle"
 					aria-label="New post title"
 					className="bg-transparent flex-1 focus:outline-none pr-2"
+					onInvalid={onInvalidTitleInput}
 				/>
 				<PostTime date={new Date()} />
 			</div>
@@ -318,18 +324,27 @@ function NewPostInput() {
 	)
 }
 
-export async function clientAction({ serverAction }: ClientActionFunctionArgs) {
-	const data = await serverAction()
-	toast.success("Posts deleted successfully!")
-	useStore.setState((state) => {
-		const selected = state.selectedBlogPosts
-		selected.clear()
-		return {
-			mode: BlogPostDashboardMode.Display,
-			selectedBlogPosts: selected,
+export async function clientAction({
+	request,
+	serverAction,
+}: ClientActionFunctionArgs) {
+	try {
+		const data = await serverAction()
+		if (request.method === "DELETE") {
+			toast.success("Posts deleted successfully!")
+			useStore.setState((state) => {
+				const selected = state.selectedBlogPosts
+				selected.clear()
+				return {
+					mode: BlogPostDashboardMode.Display,
+					selectedBlogPosts: selected,
+				}
+			})
 		}
-	})
-	return data
+		return data
+	} catch (error) {
+		console.error(error)
+	}
 }
 
 export async function action(args: ActionFunctionArgs) {
@@ -392,10 +407,11 @@ async function deletePosts(
 	const form = await request.formData()
 	const slugs = form.getAll("slugs")
 
+	if (slugs.length <= 0) {
+		throw data({ error: ApiError.BadRequest }, { status: 400 })
+	}
+
 	try {
-		if (slugs.length <= 0) {
-			throw data({ error: ApiError.BadRequest }, { status: 400 })
-		}
 		await fetchApi(`/blogs/${params.blogSlug}/posts?slugs=${slugs.join(",")}`, {
 			method: "DELETE",
 			headers: { Authorization: `Bearer ${accessToken}` },
