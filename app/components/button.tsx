@@ -1,8 +1,8 @@
 import clsx from "clsx"
 import {
-	useRef,
 	type ButtonHTMLAttributes,
 	type DetailedHTMLProps,
+	useRef,
 } from "react"
 
 interface ButtonProps
@@ -46,7 +46,7 @@ function Button({
 			<button
 				ref={btnRef}
 				className={clsx(
-					"h-full w-full rounded-full text-sm px-4 flex items-center justify-center border-t border-t-white bg-neutral-100 bg-opacity-70 backdrop-blur-lg shadow-lg  dark:bg-neutral-100 dark:bg-opacity-20 dark:border-opacity-20",
+					"h-full w-full rounded-full text-sm px-4 flex items-center justify-center border-t border-t-white bg-neutral-100 bg-opacity-70 backdrop-blur-lg shadow-lg active:scale-[0.99] active:bg-neutral-300 active:border-t-0 active:shadow-[inset_0_0_4px_rgba(0,0,0,24%)] dark:bg-neutral-100 dark:bg-opacity-20 dark:border-opacity-20 dark:active:bg-neutral-500 dark:active:bg-opacity-20 dark:active:shadow-[inset_0_0_5px_rgba(0,0,0,100%)] transition-all duration-75",
 					{ "opacity-20": props.disabled },
 					buttonClassName,
 				)}
