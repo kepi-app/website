@@ -7,6 +7,7 @@ import {
 	Form,
 	type LoaderFunctionArgs,
 	data,
+	isRouteErrorResponse,
 	redirect,
 	useFetcher,
 	useLoaderData,
@@ -343,7 +344,7 @@ export async function clientAction({
 	serverAction,
 }: ClientActionFunctionArgs) {
 	try {
-		const data = await serverAction()
+		const data = await serverAction<typeof action>()
 		switch (request.method) {
 			case "DELETE":
 				toast.success("Posts deleted successfully!")
@@ -356,9 +357,6 @@ export async function clientAction({
 					}
 				})
 				break
-
-			default:
-				break
 		}
 		return data
 	} catch (error) {
@@ -368,7 +366,13 @@ export async function clientAction({
 			useStore.setState({ mode: BlogPostDashboardMode.Display })
 			throw error
 		}
-		console.error(error)
+		if (isRouteErrorResponse(error) && error.status === 409) {
+			toast.error(
+				`A blog post titled "${error.data.conflictingValue}" already exists!`,
+			)
+		} else {
+			console.error(error)
+		}
 	}
 }
 
@@ -393,7 +397,7 @@ async function createPost(
 	const form = await request.formData()
 	const postTitle = form.get("postTitle")
 	if (!postTitle || typeof postTitle !== "string") {
-		throw data({ error: ApiError.BadRequest }, { status: 400 })
+		return data({ error: ApiError.BadRequest }, { status: 400 })
 	}
 
 	const postSlug = postTitle.replace(/ /g, "-")
@@ -418,7 +422,10 @@ async function createPost(
 				redirectToLoginPage()
 				break
 			case ApiError.Conflict:
-				throw data({ error: ApiError.Conflict }, { status: 409 })
+				throw data(
+					{ error: ApiError.Conflict, conflictingValue: postTitle },
+					{ status: 409 },
+				)
 			default:
 				throw data({ error: ApiError.Internal }, { status: 500 })
 		}
