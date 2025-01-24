@@ -77,6 +77,23 @@ interface RawCipher {
 	iv: Uint8Array
 }
 
+function base64EncodedCipherFromJson(json: string): Base64EncodedCipher | null {
+	const cipher: unknown = JSON.parse(json)
+	if (
+		typeof cipher === "object" &&
+		cipher &&
+		"text" in cipher &&
+		"authTag" in cipher &&
+		"iv" in cipher &&
+		typeof cipher.text === "string" &&
+		typeof cipher.authTag === "string" &&
+		typeof cipher.iv === "string"
+	) {
+		return cipher as Base64EncodedCipher
+	}
+	return null
+}
+
 async function deriveInitialKeys(
 	email: string,
 	password: string,
@@ -370,6 +387,7 @@ export {
 	IV_BYTE_LENGTH,
 	AUTH_TAG_BYTE_LENGTH,
 	SymmetricKey,
+	base64EncodedCipherFromJson,
 	deriveInitialKeys,
 	deriveMasterKey,
 	saveSymmetricKeyInSessionStorage,
