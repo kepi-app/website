@@ -1,11 +1,14 @@
+import clsx from "clsx"
+import dayjs from "dayjs"
+import { ArrowLeft } from "lucide-react"
+import { type Ref, memo, useEffect, useRef } from "react"
+import toast from "react-hot-toast"
 import {
 	type ActionFunctionArgs,
 	type LoaderFunctionArgs,
 	data,
 } from "react-router"
 import { useFetcher, useLoaderData, useParams } from "react-router"
-import dayjs from "dayjs"
-import { useEffect, useRef } from "react"
 import { authenticate, redirectToLoginPage } from "~/auth"
 import { MainEditor } from "~/blog-post-editor/main-editor"
 import {
@@ -13,8 +16,9 @@ import {
 	usePostEditorStore,
 	usePostEditorStoreContext,
 } from "~/blog-post-editor/store"
-import type { BlogPost } from "~/blog/post"
+import { type BlogPost, parseBlogPostFrontmatter } from "~/blog/post"
 import type { UploadResult } from "~/blog/upload"
+import { Anchor } from "~/components/anchor"
 import {
 	MarkdownEditor,
 	type MarkdownEditorRef,
@@ -104,8 +108,10 @@ function EditBlogPostPage() {
 	const insertUploadedImages = usePostEditorStore(
 		(state) => state.insertUploadedImages,
 	)
+	const validationIssues = useRef<string[]>([])
 	const editorStore = usePostEditorStoreContext()
 	const keyStore = useKeyStore()
+	const validationIssueToastId = useRef<string | null>(null)
 	const params = useParams()
 
 	const fetcher = useFetcher()
@@ -196,22 +202,35 @@ function EditBlogPostPage() {
 		[editorStore.subscribe],
 	)
 
-	useEffect(() => {
-		const unsub = editorStore.subscribe(
-			(state) => state.pendingFiles,
-			(files) => {
-				uploadFiles(files)
-			},
-		)
-		return () => {
-			unsub()
-		}
-	}, [editorStore.subscribe])
+	useEffect(
+		function uploadPendingFiles() {
+			const unsub = editorStore.subscribe(
+				(state) => state.pendingFiles,
+				(files) => {
+					uploadFiles(files)
+				},
+			)
+			return () => {
+				unsub()
+			}
+		},
+		[editorStore.subscribe],
+	)
 
-	useEffect(() => {
+	useEffect(
+		function runInitialValidation() {
+			validateFrontmatter(editorStore.getState().content)
+		},
+		[editorStore.getState],
+	)
+
+	useEffect(function cleanup() {
 		return () => {
 			if (autoSaveTimeout.current) {
 				clearTimeout(autoSaveTimeout.current)
+			}
+			if (validationIssueToastId.current) {
+				toast.remove(validationIssueToastId.current)
 			}
 		}
 	}, [])
@@ -270,6 +289,8 @@ function EditBlogPostPage() {
 		const updateForm = new FormData()
 
 		if (postUpdate.current.content) {
+			validateFrontmatter(postUpdate.current.content)
+
 			const key = await keyStore.getKey()
 
 			try {
@@ -305,15 +326,66 @@ function EditBlogPostPage() {
 		autoSaveTimeout.current = null
 	}
 
-	return (
+	function validateFrontmatter(content: string) {
+		const result = parseBlogPostFrontmatter(content)
+		if (result.ok && validationIssueToastId.current) {
+			toast.remove(validationIssueToastId.current)
+			validationIssues.current = []
+			validationIssueToastId.current = null
+		} else if (!result.ok) {
+			validationIssues.current = result.issues
+			validationIssueToastId.current = toast.error(
+				() => <ValidationIssuesToast issues={result.issues} />,
+				{
+					id: validationIssueToastId.current ?? undefined,
+					duration: Number.POSITIVE_INFINITY,
+					position: "bottom-right",
+				},
+			)
+		}
+	}
+
+	return <MemoedPage editorRef={mainEditorRef} />
+}
+
+const MemoedPage = memo(
+	({ editorRef }: { editorRef: Ref<MarkdownEditorRef> }) => (
 		<div className="w-full px-16 flex justify-center">
 			<main className="w-full mt-40 max-w-prose">
-				<MainEditor ref={mainEditorRef} />
+				<AllPostsLink />
+				<MainEditor ref={editorRef} />
 				<MarkdownEditor.Toolbar containerClassName="fixed z-10 px-16 bottom-0 left-0 right-0 ">
 					<MarkdownEditor.Toolbar.AttachImageButton />
 					<MarkdownEditor.Toolbar.PreviewButton />
 				</MarkdownEditor.Toolbar>
 			</main>
+		</div>
+	),
+)
+
+function AllPostsLink() {
+	const params = useParams()
+	const isFocused = usePostEditorStore((state) => state.isFocused)
+	return (
+		<Anchor
+			to={`/blogs/${params.blogSlug}/posts`}
+			className={clsx("transition-all", isFocused ? "opacity-0" : "opacity-80")}
+		>
+			<ArrowLeft className="inline align-sub" size={16} /> All posts
+		</Anchor>
+	)
+}
+
+// A toast that displays issues with the current blog post.
+function ValidationIssuesToast({ issues }: { issues: string[] }) {
+	return (
+		<div>
+			<p>Issues found:</p>
+			<ul className="list-disc list-inside">
+				{issues.map((value) => (
+					<li key={value}>{value}</li>
+				))}
+			</ul>
 		</div>
 	)
 }

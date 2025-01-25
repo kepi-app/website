@@ -1,8 +1,5 @@
-import { useParams } from "react-router"
 import clsx from "clsx"
-import { ArrowLeft } from "lucide-react"
 import { forwardRef, useEffect, useRef } from "react"
-import { Anchor } from "~/components/anchor"
 import { AutoResizingTextArea } from "~/components/auto-resizing-textarea"
 import {
 	MarkdownEditor,
@@ -15,7 +12,6 @@ const MainEditor = forwardRef<MarkdownEditorRef>((_, ref) => {
 	const setIsFocused = usePostEditorStore((state) => state.setIsFocused)
 	const setCanUnfocus = usePostEditorStore((state) => state.setCanUnfocus)
 	const unfocusTimeout = useRef<ReturnType<typeof setTimeout>>()
-	const params = useParams()
 
 	useEffect(() => {
 		return () => {
@@ -40,10 +36,6 @@ const MainEditor = forwardRef<MarkdownEditorRef>((_, ref) => {
 	return (
 		<>
 			<div className={clsx("transition-all mb-8", { "opacity-0": isFocused })}>
-				<Anchor to={`/blogs/${params.blogSlug}/posts`} className="opacity-80">
-					<ArrowLeft className="inline align-sub" size={16} /> All posts
-				</Anchor>
-
 				<TitleInput />
 				<DescriptionInput />
 			</div>

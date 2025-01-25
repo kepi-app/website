@@ -40,9 +40,27 @@ function tryOrThrow<T, TErr>(
 	}
 }
 
+function tryOr<T, TFallback>(
+	cb: () => T,
+	orElse: () => TFallback,
+): T | TFallback {
+	try {
+		return cb()
+	} catch {
+		return orElse()
+	}
+}
+
 function throws(ex: unknown): never {
 	throw ex
 }
 
-export { InternalError, NotLoggedInError, promiseOrThrow, tryOrThrow, throws }
+export {
+	InternalError,
+	NotLoggedInError,
+	promiseOrThrow,
+	tryOr,
+	tryOrThrow,
+	throws,
+}
 export type { CheckedPromise }

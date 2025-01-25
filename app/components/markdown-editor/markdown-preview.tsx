@@ -12,8 +12,14 @@ function MarkdownPreview() {
 	return (
 		<article className="prose dark:prose-invert mt-16 mb-40">
 			<Markdown
-				remarkPlugins={REMARK_PLUGINS}
+				remarkPlugins={[
+					...REMARK_PLUGINS,
+					() => (tree) => {
+						console.dir(tree)
+					},
+				]}
 				rehypePlugins={REHYPE_PLUGINS}
+				remarkRehypeOptions={{}}
 				components={{
 					pre: (props) => <pre {...props} className="hljs" />,
 					img: PostImage,

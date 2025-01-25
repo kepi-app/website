@@ -1,4 +1,4 @@
-function Logo() {
+function Logo({ title }: { title?: string }) {
 	return (
 		<svg
 			width="100%"
@@ -16,7 +16,7 @@ function Logo() {
 				fill: "currentcolor",
 			}}
 		>
-			<title>kepi logo</title>
+			<title>{title || "kepi logo"}</title>
 			<rect
 				id="Artboard1"
 				x="0"

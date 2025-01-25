@@ -1,12 +1,12 @@
-import { useNavigate } from "react-router"
 import React, { useContext, useEffect } from "react"
 import { useRef } from "react"
+import { useNavigate } from "react-router"
 import { useStore } from "zustand"
 import type { BlogPost } from "~/blog/post"
 import {
+	type MarkdownEditorState,
 	MarkdownEditorStoreContext,
 	extendMarkdownEditorStore,
-	type MarkdownEditorState,
 } from "~/components/markdown-editor/markdown-editor"
 import type { SymmetricKey } from "~/crypt"
 import { useKeyStore } from "~/keystore"
@@ -17,6 +17,7 @@ interface PostEditorSlice {
 	statusMessage: string
 	isFocused: boolean
 	canUnfocus: boolean
+	validationIssues: string[]
 
 	decryptPost(post: BlogPost, key: SymmetricKey): Promise<void>
 	setTitle(title: string): void
@@ -24,6 +25,7 @@ interface PostEditorSlice {
 	setIsFocused(isFocused: boolean): void
 	setCanUnfocus(canUnfocus: boolean): void
 	setStatusMessage(statusMessage: string): void
+	setValidationIssues: (issues: string[]) => void
 }
 
 type PostEditorState = PostEditorSlice & MarkdownEditorState
@@ -36,6 +38,7 @@ function createPostEditorStore() {
 		statusMessage: "",
 		isFocused: false,
 		canUnfocus: true,
+		validationIssues: [],
 
 		decryptPost: async (post, key): Promise<void> => {
 			await get().decryptContent(post.content ?? null, key)
@@ -52,6 +55,7 @@ function createPostEditorStore() {
 		setCanUnfocus: (canUnfocus) => set((state) => ({ ...state, canUnfocus })),
 		setStatusMessage: (statusMessage) =>
 			set((state) => ({ ...state, statusMessage })),
+		setValidationIssues: (issues) => set({ validationIssues: issues }),
 	}))
 }
 
