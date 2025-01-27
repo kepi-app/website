@@ -60,11 +60,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
 				<Links />
 			</head>
 			<body>
-				<KeyStoreProvider>
-					<ScrollInfoContext.Provider value={scrollInfo.current}>
-						{children}
-					</ScrollInfoContext.Provider>
-				</KeyStoreProvider>
+				<ScrollInfoContext.Provider value={scrollInfo.current}>
+					{children}
+				</ScrollInfoContext.Provider>
 				<ClientOnly>
 					{() => (
 						<Toaster
