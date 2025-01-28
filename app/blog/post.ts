@@ -1,3 +1,4 @@
+import dayjs from "dayjs"
 import yaml from "js-yaml"
 import { tryOr } from "~/errors"
 
@@ -45,7 +46,14 @@ function parseBlogPostFrontmatter(
 	if (!("slug" in data && typeof data.slug === "string")) {
 		issues.push("Slug for this post is not specified.")
 	}
-	if (!("publish date" in data && typeof data["publish date"] === "string")) {
+	if ("publish date" in data) {
+		if (
+			typeof data["publish date"] !== "string" ||
+			!dayjs(data["publish date"]).isValid()
+		) {
+			issues.push("Invalid publish date!")
+		}
+	} else {
 		issues.push("Missing publish date for this post.")
 	}
 	if ("hero image" in data && typeof data["hero image"] === "string") {
@@ -60,4 +68,4 @@ function parseBlogPostFrontmatter(
 }
 
 export { parseBlogPostFrontmatter }
-export type { BlogPost, NonEmptyBlogPost }
+export type { BlogPost, NonEmptyBlogPost, BlogPostFrontmatter }
