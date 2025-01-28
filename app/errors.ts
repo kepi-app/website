@@ -1,3 +1,5 @@
+import toast from "react-hot-toast"
+
 type CheckedPromise<T, _TErr> = Promise<T>
 
 class InternalError extends Error {
@@ -55,6 +57,12 @@ function throws(ex: unknown): never {
 	throw ex
 }
 
+function internalError(error: unknown, source?: string) {
+	// TODO: better handle internal error
+	console.error(source ?? "internal error", error)
+	toast.error("An internal application error has occurred.")
+}
+
 export {
 	InternalError,
 	NotLoggedInError,
@@ -62,5 +70,6 @@ export {
 	tryOr,
 	tryOrThrow,
 	throws,
+	internalError,
 }
 export type { CheckedPromise }

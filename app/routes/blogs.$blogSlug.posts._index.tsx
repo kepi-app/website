@@ -1,10 +1,10 @@
+import dayjs from "dayjs"
 import type React from "react"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import toast from "react-hot-toast"
 import {
 	type ActionFunctionArgs,
 	type ClientActionFunctionArgs,
-	Form,
 	type LoaderFunctionArgs,
 	data,
 	isRouteErrorResponse,
@@ -15,11 +15,18 @@ import {
 } from "react-router"
 import { create } from "zustand/react"
 import { authenticate, redirectToLoginPage } from "~/auth"
-import type { BlogPost } from "~/blog/post"
+import {
+	type BlogPost,
+	generateBlogPostSlug,
+	newBlogPostContent,
+} from "~/blog/post"
 import { Anchor } from "~/components/anchor"
 import { SmallButton } from "~/components/small-button"
+import { encryptToRaw } from "~/crypt"
 import { ApiError } from "~/error"
+import { internalError } from "~/errors"
 import { fetchApi } from "~/fetch-api"
+import { useKeyStore } from "~/keystore"
 import { getSession } from "~/sessions"
 
 enum BlogPostDashboardMode {
@@ -293,7 +300,10 @@ function NewPostInput() {
 	const isVisible = useStore(
 		(state) => state.mode === BlogPostDashboardMode.Create,
 	)
+	const [isSubmitting, setIsSubmitting] = useState(false)
 	const setMode = useStore((state) => state.setMode)
+	const fetcher = useFetcher()
+	const keyStore = useKeyStore()
 
 	if (!isVisible) return null
 
@@ -306,18 +316,62 @@ function NewPostInput() {
 		}
 	}
 
+	async function submitCreatePostForm(event: React.FormEvent<HTMLFormElement>) {
+		setIsSubmitting(true)
+
+		const form = new FormData(event.currentTarget)
+		const title = form.get("title")
+		if (!title || typeof title !== "string") {
+			setIsSubmitting(false)
+			return
+		}
+		const key = await keyStore.getKey()
+
+		const postSlug = generateBlogPostSlug(title)
+		form.set("slug", postSlug)
+
+		const createPostForm = new FormData()
+		createPostForm.set("title", title)
+		createPostForm.set("slug", postSlug)
+
+		try {
+			const { authTag, iv, text } = await encryptToRaw(
+				newBlogPostContent({
+					slug: postSlug,
+					"publish date": dayjs().format("YYYY/MM/DD"),
+				}),
+				key,
+			)
+			createPostForm.set(
+				"content",
+				new Blob([authTag, iv, text], { type: "application/octet-stream" }),
+			)
+
+			await fetcher.submit(createPostForm, {
+				method: "POST",
+				encType: "multipart/form-data",
+			})
+		} catch (error) {
+			console.error(error)
+			// TODO: handle post encryption error
+		} finally {
+			setIsSubmitting(false)
+		}
+	}
+
 	return (
-		<Form
-			method="POST"
+		<fetcher.Form
 			className="dark:bg-zinc-800 rounded -mx-2 mb-2 px-2 py-1"
+			onSubmit={submitCreatePostForm}
 		>
 			<div className="flex flex-row items-center justify-between mb-2">
 				<input
 					required
 					// biome-ignore lint/a11y/noAutofocus: it makes sense to autofocus to the title input when screenreader users click on add new post
 					autoFocus
+					disabled={isSubmitting}
 					type="text"
-					name="postTitle"
+					name="title"
 					aria-label="New post title"
 					className="bg-transparent flex-1 focus:outline-none pr-2"
 					onInvalid={onInvalidTitleInput}
@@ -326,6 +380,7 @@ function NewPostInput() {
 			</div>
 			<div className="flex flex-row w-full justify-end space-x-2">
 				<SmallButton
+					disabled={isSubmitting}
 					className="text-rose-500 dark:text-rose-200"
 					onClick={() => {
 						setMode(BlogPostDashboardMode.Display)
@@ -335,7 +390,7 @@ function NewPostInput() {
 				</SmallButton>
 				<SmallButton type="submit">Create</SmallButton>
 			</div>
-		</Form>
+		</fetcher.Form>
 	)
 }
 
@@ -371,7 +426,7 @@ export async function clientAction({
 				`A blog post titled "${error.data.conflictingValue}" already exists!`,
 			)
 		} else {
-			console.error(error)
+			internalError(error)
 		}
 	}
 }
@@ -395,14 +450,10 @@ async function createPost(
 	headers: Headers,
 ) {
 	const form = await request.formData()
-	const postTitle = form.get("postTitle")
-	if (!postTitle || typeof postTitle !== "string") {
-		return data({ error: ApiError.BadRequest }, { status: 400 })
+	const postSlug = form.get("slug")
+	if (!postSlug || typeof postSlug !== "string") {
+		throw data({ error: ApiError.BadRequest }, { status: 400 })
 	}
-
-	const postSlug = postTitle.replace(/ /g, "-")
-	const postForm = new FormData()
-	postForm.set("title", postTitle)
 
 	try {
 		const createdPost = await fetchApi<BlogPost>(
@@ -410,7 +461,7 @@ async function createPost(
 			{
 				method: "POST",
 				headers: { Authorization: `Bearer ${accessToken}` },
-				body: postForm,
+				body: form,
 			},
 		)
 		return redirect(`/blogs/${params.blogSlug}/posts/${createdPost.slug}`, {
@@ -423,7 +474,7 @@ async function createPost(
 				break
 			case ApiError.Conflict:
 				throw data(
-					{ error: ApiError.Conflict, conflictingValue: postTitle },
+					{ error: ApiError.Conflict, conflictingValue: postSlug },
 					{ status: 409 },
 				)
 			default:

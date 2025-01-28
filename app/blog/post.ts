@@ -23,6 +23,19 @@ interface BlogPostFrontmatter {
 
 const FRONTMATTER_REGEX = /(?<=^---\n)[\s\S]*(?=\n---)/
 
+function newBlogPostContent(frontmatter: BlogPostFrontmatter): string {
+	return `---
+slug: ${frontmatter.slug}
+publish date: ${frontmatter["publish date"]}
+---
+`
+}
+
+function generateBlogPostSlug(title: string): string {
+	const slug = title.replace(/\s/g, "-")
+	return encodeURIComponent(slug)
+}
+
 function parseBlogPostFrontmatter(
 	blogPostContent: string,
 ):
@@ -67,5 +80,5 @@ function parseBlogPostFrontmatter(
 	return { ok: true, frontmatter: data as BlogPostFrontmatter }
 }
 
-export { parseBlogPostFrontmatter }
+export { newBlogPostContent, generateBlogPostSlug, parseBlogPostFrontmatter }
 export type { BlogPost, NonEmptyBlogPost, BlogPostFrontmatter }
