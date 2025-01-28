@@ -7,8 +7,10 @@ import {
 	type LoaderFunctionArgs,
 	data,
 	replace,
+	useFetcher,
+	useLoaderData,
+	useParams,
 } from "react-router"
-import { useFetcher, useLoaderData, useParams } from "react-router"
 import { authenticate, redirectToLoginPage } from "~/auth"
 import { MainEditor } from "~/blog-post-editor/main-editor"
 import {
@@ -25,7 +27,7 @@ import {
 	MarkdownEditorStatus,
 } from "~/components/markdown-editor/markdown-editor"
 import type { Base64EncodedCipher } from "~/crypt"
-import { ApiError } from "~/error"
+import { ApiError, isErrorResponse } from "~/error"
 import { fetchApi } from "~/fetch-api"
 import { KeyStoreProvider, useKeyStore } from "~/keystore"
 import { getSession } from "~/sessions"
@@ -118,8 +120,16 @@ function EditBlogPostPage() {
 	const uploadFetcher = useFetcher<UploadResult[]>()
 
 	useEffect(() => {
-		if (fetcher.data?.success) {
+		if (fetcher.data === null) {
 			markPostAsSaved()
+		} else if (isErrorResponse(fetcher.data)) {
+			if (fetcher.data.error === ApiError.Conflict) {
+				toast.error(
+					"The slug is already taken by another blog post. Please pick another slug.",
+				)
+			}
+		} else {
+			// TODO: handle internal error
 		}
 	}, [fetcher.data, markPostAsSaved])
 
@@ -275,10 +285,14 @@ function EditBlogPostPage() {
 		const key = await keyStore.getKey()
 		const updateForm = await createSavePostForm(key)
 		if (updateForm) {
-			fetcher.submit(updateForm, {
-				method: "PATCH",
-				encType: "multipart/form-data",
-			})
+			try {
+				fetcher.submit(updateForm, {
+					method: "PATCH",
+					encType: "multipart/form-data",
+				})
+			} catch (error) {
+				console.error("error when submitting", error)
+			}
 		}
 		autoSaveTimeout.current = null
 	}
@@ -366,13 +380,18 @@ export async function action({ params, request }: ActionFunctionArgs) {
 		if (newSlug && newSlug !== params.blogSlug) {
 			return replace(`/blogs/${params.blogSlug}/posts/${newSlug}`)
 		}
-		return { success: true }
+		return null
 	} catch (error) {
-		console.error(error)
-		if (error === ApiError.Unauthorized) {
-			redirectToLoginPage()
-		} else {
-			throw data({ error: ApiError.Internal }, { status: 500 })
+		switch (error) {
+			case ApiError.Unauthorized:
+				redirectToLoginPage()
+				break
+
+			case ApiError.Conflict:
+				return data({ error: ApiError.Conflict }, { status: 409 })
+
+			default:
+				return data({ error: ApiError.Internal }, { status: 500 })
 		}
 	}
 }
