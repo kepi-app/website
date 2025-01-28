@@ -1,5 +1,4 @@
 import clsx from "clsx"
-import dayjs from "dayjs"
 import { ArrowLeft } from "lucide-react"
 import { type Ref, memo, useEffect, useRef } from "react"
 import toast from "react-hot-toast"
@@ -7,6 +6,7 @@ import {
 	type ActionFunctionArgs,
 	type LoaderFunctionArgs,
 	data,
+	replace,
 } from "react-router"
 import { useFetcher, useLoaderData, useParams } from "react-router"
 import { authenticate, redirectToLoginPage } from "~/auth"
@@ -24,18 +24,11 @@ import {
 	type MarkdownEditorRef,
 	MarkdownEditorStatus,
 } from "~/components/markdown-editor/markdown-editor"
-import { type Base64EncodedCipher, encryptFile, encryptToRaw } from "~/crypt"
+import type { Base64EncodedCipher } from "~/crypt"
 import { ApiError } from "~/error"
 import { fetchApi } from "~/fetch-api"
-import { useKeyStore } from "~/keystore"
+import { KeyStoreProvider, useKeyStore } from "~/keystore"
 import { getSession } from "~/sessions"
-
-interface PostUpdate {
-	title?: string
-	description?: string
-	content?: string
-	contentCipher?: Base64EncodedCipher
-}
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
 	const session = await getSession(request.headers.get("Cookie"))
@@ -66,9 +59,11 @@ export default function Page() {
 		return <ErrorPage />
 	}
 	return (
-		<PostEditorStoreProvider post={postData}>
-			<WaitForDecryption />
-		</PostEditorStoreProvider>
+		<KeyStoreProvider>
+			<PostEditorStoreProvider post={postData}>
+				<WaitForDecryption />
+			</PostEditorStoreProvider>
+		</KeyStoreProvider>
 	)
 }
 
@@ -97,10 +92,8 @@ function WaitForDecryption() {
 }
 
 function EditBlogPostPage() {
-	const postUpdate = useRef<PostUpdate>({})
 	const autoSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 	const mainEditorRef = useRef<MarkdownEditorRef | null>(null)
-	const setStatusMessage = usePostEditorStore((state) => state.setStatusMessage)
 	const setIsFocused = usePostEditorStore((state) => state.setIsFocused)
 	const clearPendingFiles = usePostEditorStore(
 		(state) => state.clearPendingFiles,
@@ -108,14 +101,27 @@ function EditBlogPostPage() {
 	const insertUploadedImages = usePostEditorStore(
 		(state) => state.insertUploadedImages,
 	)
+	const createSavePostForm = usePostEditorStore(
+		(state) => state.createSavePostForm,
+	)
+	const createUploadPendingFilesForm = usePostEditorStore(
+		(state) => state.createUploadPendingFilesForm,
+	)
+	const markPostAsSaved = usePostEditorStore((state) => state.markPostAsSaved)
 	const validationIssues = useRef<string[]>([])
 	const editorStore = usePostEditorStoreContext()
 	const keyStore = useKeyStore()
 	const validationIssueToastId = useRef<string | null>(null)
 	const params = useParams()
 
-	const fetcher = useFetcher()
+	const fetcher = useFetcher<typeof action>()
 	const uploadFetcher = useFetcher<UploadResult[]>()
+
+	useEffect(() => {
+		if (fetcher.data?.success) {
+			markPostAsSaved()
+		}
+	}, [fetcher.data, markPostAsSaved])
 
 	useEffect(
 		function unfocusOnMouseMove() {
@@ -130,26 +136,6 @@ function EditBlogPostPage() {
 			}
 		},
 		[setIsFocused, editorStore.getState],
-	)
-
-	useEffect(
-		function updateStatusMessage() {
-			switch (fetcher.state) {
-				case "idle":
-					if (editorStore.getState().statusMessage) {
-						setStatusMessage(`Last saved ${dayjs().fromNow()}`)
-					}
-					break
-
-				case "loading":
-					break
-
-				case "submitting":
-					setStatusMessage("Saving…")
-					break
-			}
-		},
-		[setStatusMessage, fetcher.state, editorStore.getState],
 	)
 
 	useEffect(() => {
@@ -175,21 +161,19 @@ function EditBlogPostPage() {
 			const unsub0 = editorStore.subscribe(
 				(state) => state.content,
 				(content) => {
-					postUpdate.current.content = content
+					console.log(content)
 					autoSaveAfterTimeout()
 				},
 			)
 			const unsub1 = editorStore.subscribe(
 				(state) => state.title,
-				(title) => {
-					postUpdate.current.title = title
+				() => {
 					autoSaveAfterTimeout()
 				},
 			)
 			const unsub2 = editorStore.subscribe(
 				(state) => state.description,
-				(description) => {
-					postUpdate.current.description = description
+				() => {
 					autoSaveAfterTimeout()
 				},
 			)
@@ -203,11 +187,11 @@ function EditBlogPostPage() {
 	)
 
 	useEffect(
-		function uploadPendingFiles() {
+		function listenForPendingFiles() {
 			const unsub = editorStore.subscribe(
 				(state) => state.pendingFiles,
-				(files) => {
-					uploadFiles(files)
+				() => {
+					uploadPendingFiles()
 				},
 			)
 			return () => {
@@ -235,46 +219,48 @@ function EditBlogPostPage() {
 		}
 	}, [])
 
-	async function uploadFiles(files: File[]) {
-		if (files.length === 0) {
-			return
-		}
-
-		const key = await keyStore.getKey()
-
-		const promises: Promise<void>[] = []
-		const formData = new FormData()
-		for (const file of files) {
-			promises.push(
-				encryptFile(file, key).then(({ fileCipher, mimeTypeCipher }) => {
-					formData.append(
-						"files",
-						new Blob([fileCipher.authTag, fileCipher.iv, fileCipher.text], {
-							type: "application/octet-stream",
-						}),
-					)
-					formData.append(
-						"mimeTypes",
-						new Blob(
-							[mimeTypeCipher.authTag, mimeTypeCipher.iv, mimeTypeCipher.text],
+	useEffect(
+		function displayValidationIssues() {
+			const unsub = editorStore.subscribe(
+				(state) => state.validationIssues,
+				(issues) => {
+					if (issues.length > 0) {
+						validationIssueToastId.current = toast.error(
+							() => <ValidationIssuesToast issues={issues} />,
 							{
-								type: "application/octet-stream",
+								id: validationIssueToastId.current ?? undefined,
+								duration: Number.POSITIVE_INFINITY,
+								position: "bottom-right",
 							},
-						),
-					)
-				}),
+						)
+					} else if (validationIssueToastId.current) {
+						toast.dismiss(validationIssueToastId.current)
+						validationIssueToastId.current = null
+					}
+				},
 			)
-		}
+			return () => {
+				unsub()
+			}
+		},
+		[editorStore.subscribe],
+	)
 
+	async function uploadPendingFiles() {
+		const key = await keyStore.getKey()
 		try {
-			await Promise.all(promises)
-			uploadFetcher.submit(formData, {
-				encType: "multipart/form-data",
-				method: "POST",
-				action: `/blogs/${params.blogSlug}/files`,
-			})
-		} catch {
+			const formData = await createUploadPendingFilesForm(key)
+			if (formData) {
+				// @ts-ignore
+				uploadFetcher.submit(formData, {
+					encType: "multipart/form-data",
+					method: "POST",
+					action: `/blogs/${params.blogSlug}/files`,
+				})
+			}
+		} catch (error) {
 			// TODO: handle file encryption error
+			console.error(error)
 		}
 	}
 
@@ -286,43 +272,14 @@ function EditBlogPostPage() {
 	}
 
 	async function savePost() {
-		const updateForm = new FormData()
-
-		if (postUpdate.current.content) {
-			validateFrontmatter(postUpdate.current.content)
-
-			const key = await keyStore.getKey()
-
-			try {
-				const { authTag, iv, text } = await encryptToRaw(
-					postUpdate.current.content,
-					key,
-				)
-
-				updateForm.set(
-					"content",
-					new Blob([authTag, iv, text], { type: "application/octet-stream" }),
-				)
-			} catch (e) {
-				console.error(e)
-				// TODO: handle post encryption error
-			}
+		const key = await keyStore.getKey()
+		const updateForm = await createSavePostForm(key)
+		if (updateForm) {
+			fetcher.submit(updateForm, {
+				method: "PATCH",
+				encType: "multipart/form-data",
+			})
 		}
-
-		if (postUpdate.current.title) {
-			updateForm.set("title", postUpdate.current.title)
-		}
-
-		if (postUpdate.current.description) {
-			updateForm.set("description", postUpdate.current.description)
-		}
-
-		// @ts-ignore
-		fetcher.submit(updateForm, {
-			method: "PATCH",
-			encType: "multipart/form-data",
-		})
-		postUpdate.current = {}
 		autoSaveTimeout.current = null
 	}
 

@@ -1,5 +1,5 @@
-import { useNavigate } from "react-router"
 import React, { useContext, useEffect, useRef } from "react"
+import { useNavigate } from "react-router"
 import { type StateCreator, create, useStore } from "zustand"
 import { subscribeWithSelector } from "zustand/middleware"
 import type { UploadResult } from "~/blog/upload"
@@ -19,7 +19,10 @@ interface MarkdownEditorState {
 	status: MarkdownEditorStatus
 	pendingFiles: File[]
 
-	decryptContent(content: string | null, key: SymmetricKey): Promise<void>
+	decryptContent(
+		content: string | null,
+		key: SymmetricKey,
+	): Promise<string | null>
 	setContent(content: string): void
 	togglePreview(): void
 	addPendingFiles(files: FileList): void
@@ -51,18 +54,20 @@ const _stateCreator: StateCreator<
 				content: "",
 				status: MarkdownEditorStatus.Editing,
 			}))
-			return
+			return ""
 		}
 
 		try {
 			const contentCipher = await rawCipherFromBase64(content)
 			const decrypted = await decryptRaw(contentCipher, key)
 			const decoder = new TextDecoder()
+			const decryptedContent = decoder.decode(decrypted)
 			set((state) => ({
 				...state,
-				content: decoder.decode(decrypted),
+				content: decryptedContent,
 				status: MarkdownEditorStatus.Editing,
 			}))
+			return decryptedContent
 		} catch (e) {
 			console.error(e)
 			set((state) => ({
@@ -70,6 +75,7 @@ const _stateCreator: StateCreator<
 				content: "",
 				status: MarkdownEditorStatus.DecryptionError,
 			}))
+			return null
 		}
 	},
 
@@ -96,15 +102,12 @@ const _stateCreator: StateCreator<
 		const statements = images.map(
 			({ fileId }) => `![INSERT CAPTION](./files/${fileId})`,
 		)
-		console.log(statements)
 		const currentContent = get().content
-		return set((state) => ({
-			...state,
-			content:
-				currentContent.substring(0, offset) +
+		get().setContent(
+			currentContent.substring(0, offset) +
 				statements.join("\n") +
 				currentContent.substring(offset),
-		}))
+		)
 	},
 })
 

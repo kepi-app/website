@@ -148,7 +148,12 @@ function KeyStoreProvider({ children }: PropsWithChildren) {
 }
 
 function useKeyStore(): KeyStore {
-	return useContext(KeyStoreContext)
+	const store = useContext(KeyStoreContext)
+	if (!store)
+		throw new Error(
+			"KeyStore is not in context! Make sure it is provided with KeyStoreProvider.",
+		)
+	return store
 }
 
 function PasswordOverlay({
