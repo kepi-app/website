@@ -354,7 +354,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
 
 	const updateForm = await request.formData()
 	try {
-		return await fetchApi<Base64EncodedCipher>(
+		await fetchApi<Base64EncodedCipher>(
 			`/blogs/${params.blogSlug}/posts/${params.postSlug}`,
 			{
 				method: "PATCH",
@@ -362,7 +362,13 @@ export async function action({ params, request }: ActionFunctionArgs) {
 				headers: { Authorization: `Bearer ${accessToken}` },
 			},
 		)
+		const newSlug = updateForm.get("slug")
+		if (newSlug && newSlug !== params.blogSlug) {
+			return replace(`/blogs/${params.blogSlug}/posts/${newSlug}`)
+		}
+		return { success: true }
 	} catch (error) {
+		console.error(error)
 		if (error === ApiError.Unauthorized) {
 			redirectToLoginPage()
 		} else {
