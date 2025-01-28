@@ -59,6 +59,7 @@ function KeyStoreProvider({ children }: PropsWithChildren) {
 		const protectedSymKeyJson = localStorage.getItem("protectedSymmetricKey")
 		const _email = localStorage.getItem("email")
 		if (!protectedSymKeyJson || !_email) {
+			console.log("navigate")
 			navigate("/login", { replace: true })
 			initDeferral.current.reject(new NotLoggedInError())
 			return
@@ -67,6 +68,7 @@ function KeyStoreProvider({ children }: PropsWithChildren) {
 		const _protectedSymmetricKey =
 			base64EncodedCipherFromJson(protectedSymKeyJson)
 		if (!_protectedSymmetricKey) {
+			console.log("navigate")
 			navigate("/login", { replace: true })
 			initDeferral.current.reject(new NotLoggedInError())
 			return
@@ -87,7 +89,7 @@ function KeyStoreProvider({ children }: PropsWithChildren) {
 	}, [navigate])
 
 	const getKey = useCallback(async () => {
-		if (initDeferral.current) {
+		if (!initDeferral.current.settled) {
 			await initDeferral.current.promise
 		}
 
@@ -103,6 +105,7 @@ function KeyStoreProvider({ children }: PropsWithChildren) {
 		if (keyBase64) {
 			const p = SymmetricKey.fromBase64(keyBase64).then((key) => {
 				keyRef.current = key
+				pendingKeyPromise.current = null
 				return key
 			})
 			pendingKeyPromise.current = p
@@ -122,6 +125,7 @@ function KeyStoreProvider({ children }: PropsWithChildren) {
 					onUnlock={(key) => {
 						keyRef.current = key
 						resolve(key)
+						pendingKeyPromise.current = null
 						setIsPasswordInputVisible(false)
 					}}
 				/>
