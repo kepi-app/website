@@ -24,7 +24,12 @@ import { Anchor } from "~/components/anchor"
 import { SmallButton } from "~/components/small-button"
 import { encryptToRaw } from "~/crypt"
 import { ApiError } from "~/error"
-import { internalError } from "~/errors"
+import {
+	ERROR_TYPE,
+	applicationHttpError,
+	displayInternalErrorToast,
+	isApplicationError,
+} from "~/errors"
 import { fetchApi } from "~/fetch-api"
 import { useKeyStore } from "~/keystore"
 import { getSession } from "~/sessions"
@@ -87,10 +92,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		)
 		return posts
 	} catch (error) {
-		if (error === ApiError.Unauthorized) {
+		if (isApplicationError(error, ERROR_TYPE.unauthorized)) {
 			redirectToLoginPage()
 		} else {
-			throw data({ error: ApiError.Internal }, { status: 500 })
+			throw applicationHttpError({ error: ERROR_TYPE.internal })
 		}
 	}
 }
@@ -426,7 +431,7 @@ export async function clientAction({
 				`A blog post titled "${error.data.conflictingValue}" already exists!`,
 			)
 		} else {
-			internalError(error)
+			displayInternalErrorToast(error)
 		}
 	}
 }
@@ -468,17 +473,16 @@ async function createPost(
 			headers,
 		})
 	} catch (error) {
-		switch (error) {
-			case ApiError.Unauthorized:
-				redirectToLoginPage()
-				break
-			case ApiError.Conflict:
-				throw data(
-					{ error: ApiError.Conflict, conflictingValue: postSlug },
-					{ status: 409 },
-				)
-			default:
-				throw data({ error: ApiError.Internal }, { status: 500 })
+		if (isApplicationError(error, ERROR_TYPE.unauthorized)) {
+			redirectToLoginPage()
+		} else if (isApplicationError(error, ERROR_TYPE.conflict)) {
+			throw applicationHttpError({
+				error: ERROR_TYPE.conflict,
+				conflictingField: "slug",
+				conflictingValue: postSlug,
+			})
+		} else {
+			throw applicationHttpError({ error: ERROR_TYPE.internal })
 		}
 	}
 }
@@ -491,7 +495,7 @@ async function deletePosts(
 	const slugs = form.getAll("slugs")
 
 	if (slugs.length <= 0) {
-		throw data({ error: ApiError.BadRequest }, { status: 400 })
+		throw applicationHttpError({ error: ERROR_TYPE.badRequest })
 	}
 
 	try {
@@ -501,10 +505,10 @@ async function deletePosts(
 		})
 		return null
 	} catch (error) {
-		if (error === ApiError.Unauthorized) {
+		if (isApplicationError(error, ERROR_TYPE.unauthorized)) {
 			redirectToLoginPage()
 		} else {
-			throw data({ error: ApiError.Internal }, { status: 500 })
+			throw applicationHttpError({ error: ERROR_TYPE.internal })
 		}
 	}
 }

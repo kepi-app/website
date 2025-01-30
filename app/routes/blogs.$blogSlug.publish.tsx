@@ -1,18 +1,23 @@
 import * as crypto from "node:crypto"
+import { useRef } from "react"
 import {
 	type ActionFunctionArgs,
 	type LoaderFunctionArgs,
 	data,
 } from "react-router"
 import { useFetcher, useLoaderData } from "react-router"
-import { useRef } from "react"
 import { authenticate, redirectToLoginPage } from "~/auth"
 import type { Blog } from "~/blog/blog"
 import type { NonEmptyBlogPost } from "~/blog/post"
 import { Button } from "~/components/button"
 import { type SymmetricKey, decryptRaw, rawCipherFromBase64 } from "~/crypt"
-import { ApiError } from "~/error"
-import type { CheckedPromise, InternalError } from "~/errors"
+import {
+	type CheckedPromise,
+	ERROR_TYPE,
+	type InternalError,
+	applicationHttpError,
+	isApplicationError,
+} from "~/errors"
 import { fetchApi } from "~/fetch-api"
 import { useKeyStore } from "~/keystore"
 import { markdownProcessor } from "~/markdown/unified.server"
@@ -52,10 +57,10 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 			posts: nonEmptyBlogPosts,
 		}
 	} catch (error) {
-		if (error === ApiError.Unauthorized) {
+		if (isApplicationError(error, ERROR_TYPE.unauthorized)) {
 			redirectToLoginPage()
 		} else {
-			throw data({ error: ApiError.Internal }, { status: 500 })
+			throw applicationHttpError({ error: ERROR_TYPE.internal })
 		}
 	}
 }
@@ -226,10 +231,10 @@ export async function action({ params, request }: ActionFunctionArgs) {
 			},
 		)
 	} catch (error) {
-		if (error === ApiError.Unauthorized) {
+		if (isApplicationError(error, ERROR_TYPE.unauthorized)) {
 			redirectToLoginPage()
 		} else {
-			return data({ error: ApiError.Internal }, { status: 500 })
+			throw applicationHttpError({ error: ERROR_TYPE.internal })
 		}
 	}
 }

@@ -1,16 +1,17 @@
+import { type ChangeEvent, useEffect, useRef } from "react"
 import {
 	type ActionFunctionArgs,
 	type LoaderFunctionArgs,
 	data,
+	useFetcher,
+	useLoaderData,
 } from "react-router"
-import { useFetcher, useLoaderData } from "react-router"
-import { type ChangeEvent, useEffect, useRef } from "react"
 import { authenticate, redirectToLoginPage } from "~/auth"
 import type { Blog } from "~/blog/blog"
 import { MarkdownEditor } from "~/components/markdown-editor/markdown-editor"
 import { MarkdownEditorStoreProvider } from "~/components/markdown-editor/store"
 import { encryptToRaw } from "~/crypt"
-import { ApiError } from "~/error"
+import { ERROR_TYPE, applicationError, isApplicationError } from "~/errors"
 import { fetchApi } from "~/fetch-api"
 import { useKeyStore } from "~/keystore"
 import { getSession } from "~/sessions"
@@ -20,17 +21,16 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 	const accessToken = await authenticate(request, session)
 
 	try {
-		const res = await fetchApi<Blog>(`/blogs/${params.blogSlug}`, {
+		return await fetchApi<Blog>(`/blogs/${params.blogSlug}`, {
 			headers: {
 				Authorization: `Bearer ${accessToken}`,
 			},
 		})
-		return res
 	} catch (error) {
-		if (error === ApiError.Unauthorized) {
+		if (isApplicationError(error, ERROR_TYPE.unauthorized)) {
 			redirectToLoginPage()
 		} else {
-			throw data({ error: ApiError.Internal }, { status: 500 })
+			throw applicationError({ error: ERROR_TYPE.internal })
 		}
 	}
 }
@@ -116,19 +116,20 @@ export async function action({ params, request }: ActionFunctionArgs) {
 	const form = await request.formData()
 
 	try {
-		const res = await fetchApi<Blog>(`/blogs/${params.blogSlug}`, {
+		return await fetchApi<Blog>(`/blogs/${params.blogSlug}`, {
 			body: form,
 			method: "PATCH",
 			headers: {
 				Authorization: `Bearer ${accessToken}`,
 			},
 		})
-		return data(res)
 	} catch (error) {
-		if (error === ApiError.Unauthorized) {
+		if (isApplicationError(error, ERROR_TYPE.unauthorized)) {
 			redirectToLoginPage()
 		} else {
-			return data({ error: ApiError.Internal }, { status: 500 })
+			return data(applicationError({ error: ERROR_TYPE.internal }), {
+				status: 500,
+			})
 		}
 	}
 }

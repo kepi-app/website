@@ -5,7 +5,6 @@ import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router"
 import "./tailwind.css"
 import { Toaster } from "react-hot-toast"
 import { ClientOnly } from "remix-utils/client-only"
-import { KeyStoreProvider } from "~/keystore"
 import { type ScrollInfo, ScrollInfoContext } from "./scroll-context"
 
 dayjs.extend(relativeTime)

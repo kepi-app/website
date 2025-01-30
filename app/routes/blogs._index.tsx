@@ -1,9 +1,10 @@
-import { type LoaderFunctionArgs, data, redirect } from "react-router"
+import type { PropsWithChildren } from "react"
+import { type LoaderFunctionArgs, redirect } from "react-router"
 import { useLoaderData } from "react-router"
 import { authenticate, redirectToLoginPage } from "~/auth"
 import type { Blog } from "~/blog/blog"
 import { Anchor } from "~/components/anchor"
-import { ApiError } from "~/error"
+import { ERROR_TYPE, applicationHttpError, isApplicationError } from "~/errors"
 import { fetchApi } from "~/fetch-api"
 import { getSession } from "~/sessions"
 
@@ -20,24 +21,22 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		}
 		return blogs
 	} catch (error) {
-		if (error === ApiError.Unauthorized) {
+		if (isApplicationError(error, ERROR_TYPE.unauthorized)) {
 			redirectToLoginPage()
 		} else {
-			throw data({ error: ApiError.Internal }, { status: 500 })
+			throw applicationHttpError({ error: ERROR_TYPE.internal })
 		}
 	}
 }
 
-export default function AllBlogsPage() {
+const AllBlogsPage = ({ children }: PropsWithChildren) => {
 	const data = useLoaderData<typeof loader>()
 
 	return (
 		<div className="w-full flex justify-center">
 			<main className="w-full max-w-prose mt-20">
 				<h1 className="text-4xl mb-4">your blogs</h1>
-				{"error" in data ? (
-					<p>We are having trouble loading your blogs.</p>
-				) : (
+				{children ?? (
 					<ul>
 						{data.map((blog) => (
 							<li key={blog.slug}>
@@ -48,5 +47,14 @@ export default function AllBlogsPage() {
 				)}
 			</main>
 		</div>
+	)
+}
+export default AllBlogsPage
+
+export function ErrorBoundary() {
+	return (
+		<AllBlogsPage>
+			<p>We are having trouble loading your blogs.</p>
+		</AllBlogsPage>
 	)
 }

@@ -1,7 +1,11 @@
-import { redirect } from "react-router"
-import { type Result, err, ok } from "trycat"
-import { type CheckedPromise, promiseOrThrow } from "~/errors"
-import { ApiError } from "./error"
+import {
+	type ApplicationError,
+	type CheckedPromise,
+	ERROR_TYPE,
+	applicationError,
+	asInternalError,
+	promiseOrThrow,
+} from "~/errors"
 
 type Endpoint =
 	| "/blogs"
@@ -16,54 +20,87 @@ type Endpoint =
 async function fetchApi<T = undefined>(
 	endpoint: Endpoint,
 	init?: RequestInit,
-): CheckedPromise<T, ApiError> {
+): CheckedPromise<T, ApplicationError> {
 	const res = await promiseOrThrow(
 		fetch(`${process.env.API_URL}${endpoint}`, init),
 		(error) => {
 			console.error("fetchApi -> fetch error", error)
-			return ApiError.Network
+			return applicationError({ error: ERROR_TYPE.network })
 		},
 	)
+
+	if (res.status === 204) {
+		return undefined as T
+	}
+
+	const json = await promiseOrThrow(res.json(), asInternalError)
+
 	switch (res.status) {
+		case 200:
+			return json
 		case 401:
-			throw ApiError.Unauthorized
+			throw applicationError({ error: ERROR_TYPE.unauthorized })
 		case 409:
-			throw ApiError.Conflict
-		case 204:
-			// in case of 204 response, we trust the call site that it knows this returns nothing
-			// @ts-ignore
-			return undefined
-		case 200: {
-			return promiseOrThrow(res.json(), (error) => {
-				console.error("fetchApi decode error", error)
-				return ApiError.Internal
+			throw applicationError({
+				error: ERROR_TYPE.conflict,
+				conflictingField: json.conflictingField,
+				conflictingValue: json.conflictingValue,
 			})
-		}
 		default:
-			throw ApiError.Internal
+			throw applicationError({ error: ERROR_TYPE.internal })
 	}
 }
 
 async function fetchApiRaw(
 	endpoint: Endpoint,
-	init?: RequestInit & { redirectToLogin?: boolean },
-): Promise<Result<Response, ApiError>> {
+	init?: RequestInit,
+): CheckedPromise<Response, ApplicationError> {
 	const res = await fetch(`${process.env.API_URL}${endpoint}`, init)
-	console.log(res.status)
+	if (res.status === 204) {
+		return res
+	}
 	switch (res.status) {
+		case 200:
+			return res
 		case 401:
-			if (init?.redirectToLogin ?? true) {
-				throw redirect("/login")
-			}
-			return err(ApiError.Unauthorized)
-		case 409:
-			return err(ApiError.Conflict)
-		case 200: {
-			return ok(res)
+			throw applicationError({ error: ERROR_TYPE.unauthorized })
+		case 409: {
+			const json = await promiseOrThrow(res.json(), asInternalError)
+			throw applicationError({
+				error: ERROR_TYPE.conflict,
+				conflictingField: json.conflictingField,
+				conflictingValue: json.conflictingValue,
+			})
 		}
 		default:
-			return err(ApiError.Internal)
+			throw applicationError({ error: ERROR_TYPE.internal })
 	}
 }
 
-export { fetchApi, fetchApiRaw }
+async function clientFetchRaw(
+	endpoint: Endpoint,
+	init?: RequestInit,
+): CheckedPromise<Response, ApplicationError> {
+	const res = await fetch(endpoint, init)
+	if (res.status === 204) {
+		return res
+	}
+	switch (res.status) {
+		case 200:
+			return res
+		case 401:
+			throw applicationError({ error: ERROR_TYPE.unauthorized })
+		case 409: {
+			const json = await promiseOrThrow(res.json(), asInternalError)
+			throw applicationError({
+				error: ERROR_TYPE.conflict,
+				conflictingField: json.conflictingField,
+				conflictingValue: json.conflictingValue,
+			})
+		}
+		default:
+			throw applicationError({ error: ERROR_TYPE.internal })
+	}
+}
+
+export { fetchApi, fetchApiRaw, clientFetchRaw }

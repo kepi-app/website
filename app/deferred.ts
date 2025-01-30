@@ -1,4 +1,4 @@
-class Deferred<T> {
+class Deferred<T, TErr = unknown> {
 	public readonly promise: Promise<T>
 	public settled = false
 
@@ -17,7 +17,7 @@ class Deferred<T> {
 		this.settled = true
 	}
 
-	public reject(reason: unknown) {
+	public reject(reason: TErr) {
 		this._reject(reason)
 		this.settled = true
 	}

@@ -1,14 +1,19 @@
-import {
-	type ActionFunctionArgs,
-	type LoaderFunctionArgs,
-	data,
+import { memo, useEffect, useRef, useState } from "react"
+import type {
+	ActionFunctionArgs,
+	ClientActionFunctionArgs,
+	LoaderFunctionArgs,
 } from "react-router"
 import { Form, redirect } from "react-router"
-import { useEffect, useRef, useState } from "react"
 import { authenticate, redirectToLoginPage } from "~/auth"
 import type { Blog } from "~/blog/blog"
 import { Button } from "~/components/button"
-import { ApiError } from "~/error"
+import {
+	ERROR_TYPE,
+	applicationHttpError,
+	displayInternalErrorToast,
+	isApplicationError,
+} from "~/errors"
 import { fetchApi } from "~/fetch-api"
 import { getSession } from "~/sessions"
 
@@ -18,30 +23,29 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	return {}
 }
 
-export default function NewBlogPage() {
-	return (
-		<div className="w-full h-screen flex justify-center">
-			<main className="w-full h-full max-w-prose flex items-center justify-center">
-				<Form
-					method="POST"
-					className="w-full h-full relative flex flex-col justify-center"
+const NewBlogPage = memo(() => (
+	<div className="w-full h-screen flex justify-center">
+		<main className="w-full h-full max-w-prose flex items-center justify-center">
+			<Form
+				method="POST"
+				className="w-full h-full relative flex flex-col justify-center"
+			>
+				<h1 className="text-xl mb-8">name your first blog</h1>
+				<div className="flex items-start mb-16">
+					<BlogSlugInput />
+					<span className="text-3xl opacity-50">.kepi.blog</span>
+				</div>
+				<Button
+					type="submit"
+					containerClassName="absolute bottom-0 right-0 w-20 mb-10 self-end"
 				>
-					<h1 className="text-xl mb-8">name your first blog</h1>
-					<div className="flex items-start mb-16">
-						<BlogSlugInput />
-						<span className="text-3xl opacity-50">.kepi.blog</span>
-					</div>
-					<Button
-						type="submit"
-						containerClassName="absolute bottom-0 right-0 w-20 mb-10 self-end"
-					>
-						Next
-					</Button>
-				</Form>
-			</main>
-		</div>
-	)
-}
+					Next
+				</Button>
+			</Form>
+		</main>
+	</div>
+))
+export default NewBlogPage
 
 function BlogSlugInput() {
 	const [inputValue, setInputValue] = useState("")
@@ -72,6 +76,17 @@ function BlogSlugInput() {
 	)
 }
 
+export async function clientAction({ serverAction }: ClientActionFunctionArgs) {
+	try {
+		await serverAction()
+	} catch (error) {
+		if (error instanceof Response) {
+			throw error
+		}
+		displayInternalErrorToast(error, "NewBlogPage -> clientAction")
+	}
+}
+
 export async function action({ request }: ActionFunctionArgs) {
 	const session = await getSession(request.headers.get("Cookie"))
 	const headers = new Headers()
@@ -89,10 +104,10 @@ export async function action({ request }: ActionFunctionArgs) {
 		})
 		return redirect(`/blogs/${createdBlog.slug}`, { headers })
 	} catch (error) {
-		if (error === ApiError.Unauthorized) {
+		if (isApplicationError(error, ERROR_TYPE.unauthorized)) {
 			redirectToLoginPage()
 		} else {
-			throw data({ error: ApiError.Internal }, { status: 500 })
+			throw applicationHttpError({ error: ERROR_TYPE.internal })
 		}
 	}
 }

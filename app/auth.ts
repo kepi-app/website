@@ -1,6 +1,7 @@
-import { type Session, redirect } from "react-router"
 import dayjs from "dayjs"
+import { type Session, redirect } from "react-router"
 import { type Result, err, ok, tryp } from "trycat"
+import { ERROR_TYPE, applicationHttpError } from "~/errors"
 import { ApiError } from "./error"
 import { type SessionData, commitSession } from "./sessions"
 
@@ -36,7 +37,7 @@ async function authenticate(
 				case ApiError.Unauthorized:
 					throw redirect("/login")
 				default:
-					throw redirect("/internal-error")
+					throw applicationHttpError({ error: ERROR_TYPE.internal })
 			}
 		}
 

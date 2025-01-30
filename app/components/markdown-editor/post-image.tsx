@@ -1,16 +1,17 @@
-import { useParams } from "react-router"
 import {
 	type DetailedHTMLProps,
 	type ImgHTMLAttributes,
 	useEffect,
 	useState,
 } from "react"
+import { useParams } from "react-router"
 import {
 	decryptRaw,
 	rawCipherFromArrayBuffer,
 	rawCipherFromBase64,
 } from "~/crypt"
-import { InternalError } from "~/errors"
+import { ERROR_TYPE, applicationError } from "~/errors"
+import { clientFetchRaw } from "~/fetch-api"
 import { useKeyStore } from "~/keystore"
 
 function PostImage(
@@ -27,21 +28,16 @@ function PostImage(
 		async function decryptImage() {
 			const key = await keyStore.getKey()
 			try {
-				const res = await fetch(`/blogs/${params.blogSlug}/${props.src}`)
-				if (res.status !== 200) {
-					if (res.status === 404) {
-						return
-					}
-					throw new InternalError(
-						`failed to retrieve post image ${props.src} because server returned ${res.status}`,
-					)
-				}
+				const res = await clientFetchRaw(
+					`/blogs/${params.blogSlug}/${props.src}`,
+				)
 
 				const mimeTypeBase64 = res.headers.get("Content-Type-Cipher")
 				if (!mimeTypeBase64) {
-					throw new InternalError(
-						`failed to retrieve post image ${props.src} because server did not return a mime type`,
-					)
+					throw applicationError({
+						error: ERROR_TYPE.internal,
+						cause: new Error("missing Content-Type-Cipher header"),
+					})
 				}
 
 				const buf = await res.arrayBuffer()

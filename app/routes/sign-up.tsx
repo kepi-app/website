@@ -1,7 +1,7 @@
-import type { ActionFunctionArgs } from "react-router"
-import { data, useFetcher, useNavigate } from "react-router"
 import sodium from "libsodium-wrappers"
-import { useEffect, useId, useRef } from "react"
+import { memo, useEffect, useId, useRef } from "react"
+import { type ActionFunctionArgs, useRouteError } from "react-router"
+import { data, useFetcher, useNavigate } from "react-router"
 import { Button } from "~/components/button"
 import { Logo } from "~/components/logo"
 import {
@@ -9,7 +9,11 @@ import {
 	deriveInitialKeys,
 	saveSymmetricKeyInSessionStorage,
 } from "~/crypt"
-import { ApiError } from "~/error"
+import {
+	ERROR_TYPE,
+	applicationHttpError,
+	displayInternalErrorToast,
+} from "~/errors"
 import { fetchApi } from "~/fetch-api"
 import { saveEmail, saveProtectedSymmetricKey } from "~/local-storage"
 import { commitSession, getSession } from "~/sessions"
@@ -20,7 +24,7 @@ interface SignUpResponse {
 	expiresAtUnixMs: number
 }
 
-export default function SignUpPage() {
+const SignUpPage = memo(() => {
 	const emailInputId = useId()
 	const passwordInputId = useId()
 	const fetcher = useFetcher<typeof action>()
@@ -161,6 +165,17 @@ export default function SignUpPage() {
 			</main>
 		</div>
 	)
+})
+export default SignUpPage
+
+export function ErrorBoundary() {
+	const error = useRouteError()
+
+	useEffect(() => {
+		displayInternalErrorToast(error)
+	}, [error])
+
+	return <SignUpPage />
 }
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -186,6 +201,6 @@ export async function action({ request }: ActionFunctionArgs) {
 			},
 		)
 	} catch (error) {
-		throw data({ error: ApiError.Internal }, { status: 500 })
+		throw applicationHttpError({ error: ERROR_TYPE.internal })
 	}
 }

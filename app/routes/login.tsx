@@ -1,6 +1,6 @@
 import clsx from "clsx"
 import _sodium from "libsodium-wrappers-sumo"
-import { useEffect, useId, useRef, useState } from "react"
+import { memo, useEffect, useId, useRef, useState } from "react"
 import toast from "react-hot-toast"
 import {
 	type ActionFunctionArgs,
@@ -21,7 +21,13 @@ import {
 	hashMasterPassword,
 	saveSymmetricKeyInSessionStorage,
 } from "~/crypt"
-import { ApiError, isErrorResponse } from "~/error"
+import {
+	ERROR_TYPE,
+	applicationHttpError,
+	displayInternalErrorToast,
+	isApplicationError,
+	useRouteApplicationError,
+} from "~/errors"
 import { fetchApi } from "~/fetch-api"
 import { saveEmail, saveProtectedSymmetricKey } from "~/local-storage"
 import { commitSession, getSession } from "~/sessions"
@@ -49,7 +55,7 @@ export function shouldRevalidate() {
 	return false
 }
 
-export default function LoginPage() {
+const LoginPage = memo(() => {
 	const emailInputId = useId()
 	const passwordInputId = useId()
 	const fetcher = useFetcher<typeof action>()
@@ -58,22 +64,11 @@ export default function LoginPage() {
 	const navigate = useNavigate()
 
 	useEffect(() => {
-		if (fetcher.data) {
-			if (isErrorResponse(fetcher.data)) {
-				setIsSubmitting(false)
-				switch (fetcher.data.error) {
-					case ApiError.Unauthorized:
-						toast.error("incorrect email or password")
-						break
-					default:
-						toast.error("an issue happened on our end. please try again later.")
-						break
-				}
-			} else {
-				onLoginSuccessful(fetcher.data)
-			}
+		if (fetcher.data && isSubmitting) {
+			onLoginSuccessful(fetcher.data)
+			setIsSubmitting(false)
 		}
-	}, [fetcher.data])
+	}, [isSubmitting, fetcher.data])
 
 	async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
 		setIsSubmitting(true)
@@ -208,6 +203,25 @@ export default function LoginPage() {
 			</main>
 		</div>
 	)
+})
+export default LoginPage
+
+export function ErrorBoundary() {
+	const error = useRouteApplicationError()
+
+	useEffect(() => {
+		let toastId: string
+		if (isApplicationError(error, ERROR_TYPE.unauthorized)) {
+			toastId = toast.error("incorrect email or password")
+		} else {
+			toastId = displayInternalErrorToast(error, "login.tsx -> clientAction")
+		}
+		return () => {
+			toast.remove(toastId)
+		}
+	}, [error])
+
+	return <LoginPage />
 }
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -229,10 +243,10 @@ export async function action({ request }: ActionFunctionArgs) {
 				"Set-Cookie": await commitSession(session),
 			},
 		})
-	} catch (err) {
-		if ((err as ApiError) === ApiError.Unauthorized) {
-			return data({ error: ApiError.Unauthorized }, { status: 401 })
+	} catch (error) {
+		if (isApplicationError(error, ERROR_TYPE.unauthorized)) {
+			throw applicationHttpError({ error: ERROR_TYPE.unauthorized })
 		}
-		return data({ error: ApiError.Internal }, { status: 500 })
+		throw applicationHttpError({ error: ERROR_TYPE.internal })
 	}
 }

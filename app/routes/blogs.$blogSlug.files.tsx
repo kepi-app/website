@@ -1,11 +1,7 @@
-import {
-	type ActionFunctionArgs,
-	type LoaderFunctionArgs,
-	data,
-} from "react-router"
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router"
 import { authenticate, redirectToLoginPage } from "~/auth"
 import type { UploadResult } from "~/blog/upload"
-import { ApiError } from "~/error"
+import { ERROR_TYPE, applicationHttpError, isApplicationError } from "~/errors"
 import { fetchApi } from "~/fetch-api"
 import { getSession } from "~/sessions"
 
@@ -22,10 +18,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			},
 		)
 	} catch (error) {
-		if (error === ApiError.Unauthorized) {
+		if (isApplicationError(error, ERROR_TYPE.unauthorized)) {
 			redirectToLoginPage()
 		} else {
-			throw data({ error: ApiError.Internal }, { status: 500 })
+			throw applicationHttpError({ error: ERROR_TYPE.internal })
 		}
 	}
 }
@@ -44,10 +40,10 @@ export async function action({ request, params }: ActionFunctionArgs) {
 			headers: { Authorization: `Bearer ${accessToken}` },
 		})
 	} catch (error) {
-		if (error === ApiError.Unauthorized) {
+		if (isApplicationError(error, ERROR_TYPE.unauthorized)) {
 			redirectToLoginPage()
 		} else {
-			throw data({ error: ApiError.Internal }, { status: 500 })
+			throw applicationHttpError({ error: ERROR_TYPE.internal })
 		}
 	}
 }

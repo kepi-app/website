@@ -14,7 +14,12 @@ import { useNavigate } from "react-router"
 import { ClientOnly } from "remix-utils/client-only"
 import { Logo } from "~/components/logo"
 import { Deferred } from "~/deferred"
-import { type CheckedPromise, NotLoggedInError, throws } from "~/errors"
+import {
+	type ApplicationError,
+	type CheckedPromise,
+	ERROR_TYPE,
+	throws,
+} from "~/errors"
 import { Button } from "./components/button"
 import {
 	type Base64EncodedCipher,
@@ -26,19 +31,13 @@ import {
 } from "./crypt"
 
 interface KeyStore {
-	getKey(): CheckedPromise<SymmetricKey, NotLoggedInError | KeyUnavailableError>
+	getKey(): CheckedPromise<SymmetricKey, ApplicationError>
 }
 
 interface PasswordInputProps {
 	email: string
 	protectedSymmetricKey: Base64EncodedCipher
 	onUnlock: (symmetricKey: SymmetricKey) => void
-}
-
-class KeyUnavailableError extends Error {
-	constructor() {
-		super("symmetric key not available.")
-	}
 }
 
 const KeyStoreContext = React.createContext<KeyStore>(
@@ -50,7 +49,7 @@ function KeyStoreProvider({ children }: PropsWithChildren) {
 	const email = useRef<string | null>(null)
 	const protectedSymmetricKey = useRef<Base64EncodedCipher | null>(null)
 	const pendingKeyPromise = useRef<Promise<SymmetricKey> | null>(null)
-	const initDeferral = useRef(new Deferred<void>())
+	const initDeferral = useRef(new Deferred<void, ApplicationError>())
 	const keyRef = useRef<SymmetricKey | null>(null)
 	const passwordOverlayRef = useRef<ReactElement | null>(null)
 	const navigate = useNavigate()
@@ -59,9 +58,8 @@ function KeyStoreProvider({ children }: PropsWithChildren) {
 		const protectedSymKeyJson = localStorage.getItem("protectedSymmetricKey")
 		const _email = localStorage.getItem("email")
 		if (!protectedSymKeyJson || !_email) {
-			console.log("navigate")
 			navigate("/login", { replace: true })
-			initDeferral.current.reject(new NotLoggedInError())
+			initDeferral.current.reject({ error: ERROR_TYPE.unauthorized })
 			return
 		}
 
@@ -70,7 +68,7 @@ function KeyStoreProvider({ children }: PropsWithChildren) {
 		if (!_protectedSymmetricKey) {
 			console.log("navigate")
 			navigate("/login", { replace: true })
-			initDeferral.current.reject(new NotLoggedInError())
+			initDeferral.current.reject({ error: ERROR_TYPE.unauthorized })
 			return
 		}
 
@@ -113,8 +111,9 @@ function KeyStoreProvider({ children }: PropsWithChildren) {
 		}
 
 		const _protectedSymmetricKey =
-			protectedSymmetricKey.current ?? throws(new KeyUnavailableError())
-		const _email = email.current || throws(new NotLoggedInError())
+			protectedSymmetricKey.current ??
+			throws({ error: ERROR_TYPE.unauthorized })
+		const _email = email.current || throws({ error: ERROR_TYPE.unauthorized })
 
 		const p = new Promise<SymmetricKey>((resolve) => {
 			setIsPasswordInputVisible(true)

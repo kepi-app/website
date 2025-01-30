@@ -5,11 +5,11 @@ import toast from "react-hot-toast"
 import {
 	type ActionFunctionArgs,
 	type LoaderFunctionArgs,
-	data,
 	replace,
 	useFetcher,
 	useLoaderData,
 	useParams,
+	useRouteError,
 } from "react-router"
 import { authenticate, redirectToLoginPage } from "~/auth"
 import { MainEditor } from "~/blog-post-editor/main-editor"
@@ -27,7 +27,12 @@ import {
 	MarkdownEditorStatus,
 } from "~/components/markdown-editor/markdown-editor"
 import type { Base64EncodedCipher } from "~/crypt"
-import { ApiError, isErrorResponse } from "~/error"
+import {
+	ERROR_TYPE,
+	applicationHttpError,
+	displayInternalErrorToast,
+	isApplicationError,
+} from "~/errors"
 import { fetchApi } from "~/fetch-api"
 import { KeyStoreProvider, useKeyStore } from "~/keystore"
 import { getSession } from "~/sessions"
@@ -43,10 +48,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			},
 		)
 	} catch (error) {
-		if (error === ApiError.Unauthorized) {
+		if (isApplicationError(error, ERROR_TYPE.unauthorized)) {
 			redirectToLoginPage()
 		} else {
-			throw data({ error: ApiError.Internal }, { status: 500 })
+			throw applicationHttpError({ error: ERROR_TYPE.internal })
 		}
 	}
 }
@@ -55,7 +60,7 @@ export function shouldRevalidate() {
 	return false
 }
 
-export default function Page() {
+const Page = memo(() => {
 	const postData = useLoaderData<typeof loader>()
 	if ("error" in postData) {
 		return <ErrorPage />
@@ -67,7 +72,8 @@ export default function Page() {
 			</PostEditorStoreProvider>
 		</KeyStoreProvider>
 	)
-}
+})
+export default Page
 
 function ErrorPage() {
 	return (
@@ -122,14 +128,6 @@ function EditBlogPostPage() {
 	useEffect(() => {
 		if (fetcher.data === null) {
 			markPostAsSaved()
-		} else if (isErrorResponse(fetcher.data)) {
-			if (fetcher.data.error === ApiError.Conflict) {
-				toast.error(
-					"The slug is already taken by another blog post. Please pick another slug.",
-				)
-			}
-		} else {
-			// TODO: handle internal error
 		}
 	}, [fetcher.data, markPostAsSaved])
 
@@ -361,6 +359,22 @@ function ValidationIssuesToast({ issues }: { issues: string[] }) {
 	)
 }
 
+export function ErrorBoundary() {
+	const error = useRouteError()
+
+	useEffect(() => {
+		if (isApplicationError(error, ERROR_TYPE.conflict)) {
+			toast.error(
+				"The slug is already taken by another blog post. Please pick another slug.",
+			)
+		} else {
+			displayInternalErrorToast(error, "BlogPostEditorPage -> ErrorBoundary")
+		}
+	}, [error])
+
+	return <Page />
+}
+
 export async function action({ params, request }: ActionFunctionArgs) {
 	const session = await getSession(request.headers.get("Cookie"))
 	const headers = new Headers()
@@ -382,16 +396,11 @@ export async function action({ params, request }: ActionFunctionArgs) {
 		}
 		return null
 	} catch (error) {
-		switch (error) {
-			case ApiError.Unauthorized:
-				redirectToLoginPage()
-				break
-
-			case ApiError.Conflict:
-				return data({ error: ApiError.Conflict }, { status: 409 })
-
-			default:
-				return data({ error: ApiError.Internal }, { status: 500 })
+		if (isApplicationError(error, ERROR_TYPE.unauthorized)) {
+			redirectToLoginPage()
+		} else if (isApplicationError(error, ERROR_TYPE.conflict)) {
+			throw applicationHttpError(error)
 		}
+		throw applicationHttpError({ error: ERROR_TYPE.internal })
 	}
 }

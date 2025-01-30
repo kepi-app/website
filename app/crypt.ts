@@ -3,7 +3,8 @@ import argon2 from "argon2-browser/dist/argon2-bundled.min.js"
 import _sodium from "libsodium-wrappers-sumo"
 import {
 	type CheckedPromise,
-	InternalError,
+	type InternalError,
+	asInternalError,
 	promiseOrThrow,
 	tryOrThrow,
 } from "~/errors"
@@ -165,7 +166,7 @@ async function deriveInitialKeys(
 			authTag,
 		}
 	} catch (e) {
-		throw new InternalError(e)
+		throw asInternalError(e)
 	}
 }
 
@@ -197,7 +198,7 @@ async function hashMasterPassword(
 
 		return { masterKey, masterPasswordHash }
 	} catch (e) {
-		throw new InternalError(e)
+		throw asInternalError(e)
 	}
 }
 
@@ -216,7 +217,7 @@ async function deriveMasterKey(
 			mem: ARGON2_MEM_COST_KB,
 			hashLen: MASTER_KEY_BYTE_LENGTH,
 		}),
-		(e) => new InternalError(e),
+		asInternalError,
 	)
 }
 
@@ -227,7 +228,7 @@ async function deriveStretchedMasterKey(
 		crypto.subtle.importKey("raw", masterKeyBytes, { name: "HKDF" }, false, [
 			"deriveBits",
 		]),
-		(e) => new InternalError(e),
+		asInternalError,
 	)
 	const stretchedMasterKey = await promiseOrThrow(
 		crypto.subtle.deriveBits(
@@ -240,7 +241,7 @@ async function deriveStretchedMasterKey(
 			ikm,
 			STRETCHED_MASTER_KEY_BYTE_LENGTH * 8,
 		),
-		(e) => new InternalError(e),
+		asInternalError,
 	)
 	return new SymmetricKey(new Uint8Array(stretchedMasterKey))
 }
@@ -259,12 +260,16 @@ async function encryptFile(
 				if (fileReader.result && typeof fileReader.result !== "string") {
 					resolve(new Uint8Array(fileReader.result))
 				} else {
-					reject(new InternalError())
+					reject(
+						new Error(
+							`FileReader returned an unexpected result: ${fileReader.result}`,
+						),
+					)
 				}
 			}
 			fileReader.readAsArrayBuffer(file)
 		}),
-		(e) => e,
+		asInternalError,
 	)
 
 	const [mimeTypeCipher, fileCipher] = await promiseOrThrow(
@@ -296,7 +301,7 @@ async function encryptToRaw(
 				symmetricKey.encryptionKey,
 				"uint8array",
 			),
-		(e) => new InternalError(e),
+		asInternalError,
 	)
 
 	return { text: box.ciphertext, authTag: box.mac, iv }
@@ -330,7 +335,7 @@ async function decrypt(
 				key.encryptionKey,
 				"uint8array",
 			),
-		(e) => new InternalError(e),
+		asInternalError,
 	)
 }
 
@@ -351,7 +356,7 @@ async function decryptRaw(
 				key.encryptionKey,
 				"uint8array",
 			),
-		(e) => new InternalError(e),
+		asInternalError,
 	)
 }
 
