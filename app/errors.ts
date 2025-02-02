@@ -101,6 +101,17 @@ function promiseOrThrow<T, TErr extends ApplicationError>(
 	}
 }
 
+function promiseOr<T, TFallback>(
+	promise: T | Promise<T>,
+	orElse: () => TFallback | Promise<TFallback>,
+) {
+	try {
+		return promise
+	} catch {
+		return orElse()
+	}
+}
+
 function tryOrThrow<T, TErr>(
 	cb: () => T,
 	mapException?: (error: unknown) => TErr,
@@ -171,6 +182,7 @@ function useRouteApplicationError() {
 export {
 	ERROR_TYPE,
 	promiseOrThrow,
+	promiseOr,
 	tryOr,
 	tryOrThrow,
 	throws,
