@@ -9,7 +9,7 @@ import {
 	isApplicationError,
 } from "~/errors"
 import { isLocalFileSystemAvailable } from "~/file-system"
-import { createNotebook, isValidNotebookName } from "~/vault"
+import { createNotebook, isValidNotebookName } from "~/vault/notebook"
 import type { Route } from "./+types/notebooks.new"
 
 export async function clientLoader(_: Route.ClientLoaderArgs) {

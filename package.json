@@ -21,6 +21,7 @@
     "dayjs": "^1.11.13",
     "hast-util-select": "^6.0.3",
     "highlightjs": "^9.16.2",
+    "immer": "^10.1.1",
     "isbot": "^4.1.0",
     "jotai": "^2.11.2",
     "js-yaml": "^4.1.0",
@@ -46,6 +47,7 @@
     "remark-math": "^6.0.0",
     "remix-utils": "^7.7.0",
     "trycat": "^0.2.4",
+    "ulid": "^2.3.0",
     "zustand": "^5.0.0-rc.2"
   },
   "devDependencies": {

@@ -1,58 +1,65 @@
 import {
+	type ForwardRefExoticComponent,
+	type MemoExoticComponent,
+	type RefAttributes,
 	forwardRef,
+	memo,
 	useImperativeHandle,
 	useRef,
-	type ForwardRefExoticComponent,
-	type RefAttributes,
 } from "react"
 import { AutoResizingTextArea } from "../auto-resizing-textarea"
+import { MarkdownEditorToolbar } from "./markdown-editor-toolbar"
 import { MarkdownPreview } from "./markdown-preview"
 import { MarkdownEditorStatus, useMarkdownEditorStore } from "./store"
-import { MarkdownEditorToolbar } from "./markdown-editor-toolbar"
 
 interface MarkdownEditorProps {
 	onChange?: (event: React.ChangeEvent<HTMLTextAreaElement>) => void
+	fileLoader: (src: string) => Promise<Blob | null>
 }
 
 interface MarkdownEditorRef {
 	selectionEnd: number
 }
 
-type TMarkdownEditor = ForwardRefExoticComponent<
-	MarkdownEditorProps & RefAttributes<MarkdownEditorRef>
+type TMarkdownEditor = MemoExoticComponent<
+	ForwardRefExoticComponent<
+		MarkdownEditorProps & RefAttributes<MarkdownEditorRef>
+	>
 > & {
 	Toolbar: typeof MarkdownEditorToolbar
 }
 
-const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
-	({ onChange }, ref) => {
-		const status = useMarkdownEditorStore((state) => state.status)
-		const contentInputRef = useRef<HTMLTextAreaElement | null>(null)
+const MarkdownEditor = memo(
+	forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
+		({ onChange, fileLoader }, ref) => {
+			const status = useMarkdownEditorStore((state) => state.status)
+			const contentInputRef = useRef<HTMLTextAreaElement | null>(null)
 
-		useImperativeHandle(ref, () => ({
-			get selectionEnd() {
-				return contentInputRef?.current?.selectionEnd ?? 0
-			},
-		}))
+			useImperativeHandle(ref, () => ({
+				get selectionEnd() {
+					return contentInputRef?.current?.selectionEnd ?? 0
+				},
+			}))
 
-		switch (status) {
-			case MarkdownEditorStatus.Decrypting:
-				return <p className="animate-pulse">Decrypting content…</p>
+			switch (status) {
+				case MarkdownEditorStatus.Decrypting:
+					return <p className="animate-pulse">Decrypting content…</p>
 
-			case MarkdownEditorStatus.Previewing:
-				return <MarkdownPreview />
+				case MarkdownEditorStatus.Previewing:
+					return <MarkdownPreview fileLoader={fileLoader} />
 
-			case MarkdownEditorStatus.DecryptionError:
-				return (
-					<p className="text-rose-500 dark:text-rose-200">
-						Failed to decrypt content! Please try refreshing the page.
-					</p>
-				)
+				case MarkdownEditorStatus.DecryptionError:
+					return (
+						<p className="text-rose-500 dark:text-rose-200">
+							Failed to decrypt content! Please try refreshing the page.
+						</p>
+					)
 
-			case MarkdownEditorStatus.Editing:
-				return <ContentInput ref={contentInputRef} onChange={onChange} />
-		}
-	},
+				case MarkdownEditorStatus.Editing:
+					return <ContentInput ref={contentInputRef} onChange={onChange} />
+			}
+		},
+	),
 ) as TMarkdownEditor
 
 const ContentInput = forwardRef<

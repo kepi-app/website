@@ -28,6 +28,7 @@ interface MarkdownEditorState {
 	addPendingFiles(files: FileList): void
 	clearPendingFiles(): void
 	insertUploadedImages(images: UploadResult[], offset: number): void
+	insertFiles(fileSlugs: string[], offset: number): void
 }
 
 type MarkdownEditorStore = ReturnType<typeof createMarkdownEditorStore>
@@ -108,6 +109,20 @@ const _stateCreator: StateCreator<
 				statements.join("\n") +
 				currentContent.substring(offset),
 		)
+	},
+
+	insertFiles: (fileSlugs, offset) => {
+		if (fileSlugs.length > 0) {
+			const statements = fileSlugs.map(
+				(slug) => `![INSERT CAPTION](./files/${slug})`,
+			)
+			const currentContent = get().content
+			get().setContent(
+				currentContent.substring(0, offset) +
+					statements.join("\n") +
+					currentContent.substring(offset),
+			)
+		}
 	},
 })
 

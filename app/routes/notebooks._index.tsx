@@ -6,6 +6,7 @@ import { memo } from "react"
 import type { PropsWithChildren } from "react"
 import toast from "react-hot-toast"
 import { Form, useLoaderData } from "react-router"
+import { Anchor } from "~/components/anchor"
 import { Button } from "~/components/button"
 import { Logo } from "~/components/logo"
 import { SmallButton } from "~/components/small-button"
@@ -18,7 +19,7 @@ import {
 	type NotebookMetadata,
 	createNotebook,
 	findAllNotebooks,
-} from "~/vault"
+} from "~/vault/notebook"
 import type { Route } from "./+types/notebooks._index"
 
 const currentHoverIndex = atom(-1)
@@ -32,7 +33,7 @@ const Page = memo(({ children }: PropsWithChildren) => {
 	return (
 		<PageContainer>
 			<LogoHeader />
-			<div className="w-full max-w-prose mb-12 flex flex-row items-center justify-between">
+			<div className="w-full max-w-prose mb-12 flex flex-row items-start justify-between">
 				<PageTitle />
 				<NewNotebookButton />
 			</div>
@@ -132,9 +133,7 @@ function NotebookList() {
 			))}
 		</ul>
 	) : (
-		<p>
-			No notebook found. <Button>Create new notebook</Button>
-		</p>
+		<p className="w-full max-w-prose opacity-80">No notebook found.</p>
 	)
 }
 
@@ -262,7 +261,7 @@ function NotebookItem({
 
 	return (
 		<li
-			className="py-1 cursor-pointer transition-all duration-75"
+			className="w-full py-1 cursor-pointer transition-all duration-75"
 			onMouseEnter={() => {
 				setHoverIndex(index)
 			}}
@@ -283,7 +282,12 @@ function NotebookItem({
 const NotebookItemContent = memo(
 	({ notebook }: { notebook: NotebookMetadata }) => (
 		<>
-			<p className="text-lg">{notebook.name}</p>
+			<Anchor
+				to={`/notebooks/${notebook.slug}`}
+				className="no-underline text-lg w-full"
+			>
+				{notebook.name}
+			</Anchor>
 			<p
 				className={clsx("text-sm opacity-50", {
 					italic: !notebook.description,

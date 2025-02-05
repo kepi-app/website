@@ -10,6 +10,7 @@ const ERROR_TYPE = {
 	conflict: "CONFLICT",
 	network: "NETWORK",
 	decryptionFailed: "DECRYPTION_FAILED",
+	notFound: "NOT_FOUND",
 } as const
 type ErrorType = (typeof ERROR_TYPE)[keyof typeof ERROR_TYPE]
 
@@ -41,6 +42,10 @@ interface DecryptionFailedError {
 	cause: unknown
 }
 
+interface NotFoundError {
+	error: typeof ERROR_TYPE.notFound
+}
+
 type ApplicationError =
 	| InternalError
 	| UnauthorizedError
@@ -48,6 +53,7 @@ type ApplicationError =
 	| ConflictError
 	| NetworkError
 	| DecryptionFailedError
+	| NotFoundError
 type ApplicationHttpError = Exclude<ApplicationError, DecryptionFailedError>
 
 interface ErrorTypeMap {
@@ -57,6 +63,7 @@ interface ErrorTypeMap {
 	[ERROR_TYPE.conflict]: ConflictError
 	[ERROR_TYPE.network]: NetworkError
 	[ERROR_TYPE.decryptionFailed]: DecryptionFailedError
+	[ERROR_TYPE.notFound]: NotFoundError
 }
 
 const HTTP_ERROR_CODE = {
@@ -65,6 +72,7 @@ const HTTP_ERROR_CODE = {
 	[ERROR_TYPE.badRequest]: 400,
 	[ERROR_TYPE.conflict]: 409,
 	[ERROR_TYPE.network]: 500,
+	[ERROR_TYPE.notFound]: 404,
 } as const
 
 const APPLICATION_ERROR_TAG = "ApplicationError"
@@ -103,12 +111,12 @@ function promiseOrThrow<T, TErr extends ApplicationError>(
 
 function promiseOr<T, TFallback>(
 	promise: T | Promise<T>,
-	orElse: () => TFallback | Promise<TFallback>,
+	orElse: (error: unknown) => TFallback | Promise<TFallback>,
 ) {
 	try {
 		return promise
-	} catch {
-		return orElse()
+	} catch (error) {
+		return orElse(error)
 	}
 }
 
@@ -142,7 +150,10 @@ function throws(ex: unknown): never {
 }
 
 function asInternalError(error: unknown): InternalError {
-	return { error: ERROR_TYPE.internal, cause: error }
+	return applicationError({
+		error: ERROR_TYPE.internal,
+		cause: error,
+	})
 }
 
 function displayInternalErrorToast(error: unknown, source?: string) {
@@ -160,11 +171,11 @@ function applicationHttpError(error: ApplicationHttpError) {
 	)
 }
 
-function applicationError(error: ApplicationError): ApplicationError {
+function applicationError<T extends ApplicationError>(error: T): T {
 	return {
 		_tag: APPLICATION_ERROR_TAG,
 		...error,
-	} as unknown as ApplicationError
+	} as unknown as T
 }
 
 /**
