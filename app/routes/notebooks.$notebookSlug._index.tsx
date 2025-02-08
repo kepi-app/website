@@ -107,9 +107,9 @@ function NoteList({
 		<ul className={indentation === 0 ? "" : "ml-4"}>
 			{Object.values(section.children).map((childSection) => (
 				<li key={childSection.title}>
-					<details className="rounded group  group">
-						<summary className="px-2 py-1 rounded group-open:bg-zinc-800 cursor-default group-hover:bg-zinc-800">
-							<ChevronRight className="group-open:rotate-90 inline w-4 h-4 -translate-x-[4px]" />{" "}
+					<details className="rounded [&>summary>svg]:open:rotate-90">
+						<summary className="px-2 py-1 rounded cursor-default hover:bg-zinc-800">
+							<ChevronRight className="inline w-4 h-4 -translate-x-[4px]" />{" "}
 							{childSection.title}
 						</summary>
 						<NoteList section={childSection} indentation={indentation + 1} />
