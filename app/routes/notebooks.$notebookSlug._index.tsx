@@ -104,7 +104,7 @@ function NoteList({
 }: { section: NotebookSection; indentation: number }) {
 	const index = useNotebookStore((state) => state.notebook.index)
 	return (
-		<ul className="ml-4">
+		<ul className={indentation === 0 ? "" : "ml-4"}>
 			{Object.values(section.children).map((childSection) => (
 				<li key={childSection.title}>
 					<details className="rounded group  group">
