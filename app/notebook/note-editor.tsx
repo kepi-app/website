@@ -65,7 +65,7 @@ const NoteEditor = forwardRef<MarkdownEditorRef>((_, ref) => {
 
 	const fileLoader = useCallback(
 		async (src: string): Promise<Blob | null> => {
-			const components = src.split("/")
+			const components = decodeURIComponent(src).split("/")
 			if (
 				components.length !== 3 ||
 				components[0] !== "." ||

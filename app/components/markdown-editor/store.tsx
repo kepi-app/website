@@ -114,7 +114,7 @@ const _stateCreator: StateCreator<
 	insertFiles: (fileSlugs, offset) => {
 		if (fileSlugs.length > 0) {
 			const statements = fileSlugs.map(
-				(slug) => `![INSERT CAPTION](./files/${slug})`,
+				(slug) => `![INSERT CAPTION](./files/${encodeURIComponent(slug)})`,
 			)
 			const currentContent = get().content
 			get().setContent(
