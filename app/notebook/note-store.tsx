@@ -27,6 +27,7 @@ interface NoteEditorSlice {
 	setCanUnfocus(canUnfocus: boolean): void
 	changeNoteHandle(newHandle: NoteHandle): void
 	changeNoteSlug(newSlug: NoteSlug): void
+	changeNotePath: (path: string[]) => void
 	addFiles(
 		files: File[],
 		notebook: Notebook,
@@ -82,6 +83,18 @@ function createNoteEditorStore(note: Note) {
 					metadata: {
 						...state.note.metadata,
 						slug: newSlug,
+					},
+				},
+			})),
+
+		changeNotePath: (path: string[]) =>
+			set((state) => ({
+				...state,
+				note: {
+					...state.note,
+					metadata: {
+						...state.note.metadata,
+						path,
 					},
 				},
 			})),

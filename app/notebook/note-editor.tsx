@@ -5,6 +5,7 @@ import {
 	MarkdownEditor,
 	type MarkdownEditorRef,
 } from "~/components/markdown-editor/markdown-editor"
+import { NotePathSelector } from "~/notebook/note-path-selector"
 import {
 	useNoteEditorStore,
 	useNoteEditorStoreContext,
@@ -79,6 +80,7 @@ const NoteEditor = forwardRef<MarkdownEditorRef>((_, ref) => {
 
 	return (
 		<>
+			<NotePathSelector />
 			<TitleInputContainer />
 			<MarkdownEditor
 				ref={ref}

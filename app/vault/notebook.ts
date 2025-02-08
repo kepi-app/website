@@ -36,7 +36,7 @@ interface NotebookEntry {
 	internalId: InternalNoteId
 	title: string
 	slug: NoteSlug
-	path: string
+	path: string[]
 }
 
 interface NotebookIndex {
@@ -48,7 +48,7 @@ interface NotebookIndex {
 interface NotebookSection {
 	title: string
 	notes: InternalNoteId[]
-	children: NotebookSection[]
+	children: Record<string, NotebookSection>
 }
 
 interface Note {
@@ -61,7 +61,7 @@ interface Note {
 interface NoteMetadata {
 	title: string
 	slug: NoteSlug
-	category?: string
+	path: string[]
 }
 
 interface SaveNoteResult {
@@ -149,7 +149,7 @@ async function createNotebook({
 				root: {
 					title: "",
 					notes: [],
-					children: [],
+					children: {},
 				},
 			}
 
@@ -194,15 +194,19 @@ async function createNotebook({
 	})
 }
 
+function normalizeNotePath(pathString: string | null | undefined): string[] {
+	return pathString ? pathString.split("/") : []
+}
+
 async function createNote(
 	notebookHandle: NotebookHandle,
-	{ title, path }: { title: string; path: string },
+	{ title, path }: { title: string; path: string[] },
 ): CheckedPromise<NotebookEntry, ApplicationError> {
 	const internalId = ulid() as InternalNoteId
 	const slug = title ? slugify(title) : internalId
 	const entry: NotebookEntry = {
 		title,
-		path,
+		path: [],
 		slug: slug as NoteSlug,
 		internalId,
 	}
@@ -278,16 +282,13 @@ async function findNote(
 	}
 }
 
-async function saveNote(
-	note: Note,
-	notebook: Notebook,
-): Promise<SaveNoteResult> {
+async function saveNote(note: Note, notebook: Notebook): Promise<Note> {
 	const entry = notebook.index.entries[note.metadata.slug]
 	if (!entry) {
 		throw applicationError({ error: ERROR_TYPE.notFound })
 	}
 
-	let handle: FileSystemFileHandle
+	let handle: NoteHandle
 	let newSlug: string | null = null
 	let prevHandle: FileSystemFileHandle | null = null
 
@@ -305,7 +306,9 @@ async function saveNote(
 				})
 			}
 			newSlug = slug
-			handle = await notebook.handle.getFileHandle(slug, { create: true })
+			handle = (await notebook.handle.getFileHandle(slug, {
+				create: true,
+			})) as NoteHandle
 			prevHandle = note.handle
 		} else {
 			// title has not changed, file doesn't need to be renamed
@@ -315,9 +318,9 @@ async function saveNote(
 		// if the note does not have a title
 		// use its internal id as file name, but first we check if that's the case already
 		if (entry.internalId !== note.handle.name) {
-			handle = await notebook.handle.getFileHandle(entry.internalId, {
+			handle = (await notebook.handle.getFileHandle(entry.internalId, {
 				create: true,
-			})
+			})) as NoteHandle
 			prevHandle = note.handle
 			newSlug = entry.internalId
 		} else {
@@ -332,7 +335,10 @@ async function saveNote(
 		metadata.slug = newSlug as NoteSlug
 	}
 	const newContent = `---
-${yaml.dump(metadata)}
+${yaml.dump({
+	...metadata,
+	path: metadata.path.join("/"),
+})}
 ---
 ${note.content}`
 
@@ -345,8 +351,9 @@ ${note.content}`
 	}
 
 	return {
-		newSlug: newSlug as NoteSlug | null,
-		newNoteHandle: handle as NoteHandle | null,
+		...note,
+		handle,
+		metadata,
 	}
 }
 
@@ -416,7 +423,15 @@ async function readNotebookIndex(
 			.getFileHandle(NOTEBOOK_RESERVED_NAME.index)
 			.then((it) => it.getFile())
 			.then((f) => f.text())
-		return JSON.parse(json)
+			.then((it) => JSON.parse(it))
+		const index: NotebookIndex = { ...json, entries: {} }
+		for (const [slug, value] of Object.entries(json.entries)) {
+			// biome-ignore lint/suspicious/noExplicitAny: <explanation>
+			const entry: any = value
+			index.entries[slug as NoteSlug] = entry
+			entry.path = normalizeNotePath(entry.path)
+		}
+		return index
 	} catch (error) {
 		throw asInternalError(error)
 	}
@@ -431,8 +446,30 @@ async function saveNotebookIndex(
 			.then((h) => h.createWritable()),
 		asInternalError,
 	)
-	await writable.write(JSON.stringify(notebook.index))
+	// biome-ignore lint/suspicious/noExplicitAny: <explanation>
+	const json: any = { ...notebook.index, entries: {} }
+	for (const [key, value] of Object.entries(notebook.index.entries)) {
+		json.entries[key] = {
+			...value,
+			path: value.path.join("/"),
+		}
+	}
+	await writable.write(JSON.stringify(json))
 	await writable.close()
+}
+
+function findNotebookSectionByPath(
+	index: NotebookIndex,
+	path: string[],
+): NotebookSection | null {
+	let current = index.root
+	for (const component of path) {
+		if (!current) {
+			return null
+		}
+		current = current.children[component]
+	}
+	return current || null
 }
 
 function parseNoteFrontmatter(content: string): NoteMetadata {
@@ -449,6 +486,9 @@ function parseNoteFrontmatter(content: string): NoteMetadata {
 		throw applicationError({ error: ERROR_TYPE.internal })
 	}
 
+	// @ts-ignore
+	data.path = normalizeNotePath(data.path)
+
 	return data as NoteMetadata
 }
 
@@ -462,6 +502,7 @@ export {
 	findNotebook,
 	readNotebookIndex,
 	saveNotebookIndex,
+	findNotebookSectionByPath,
 	findAllNotebooks,
 	createNotebook,
 	isValidNotebookName,

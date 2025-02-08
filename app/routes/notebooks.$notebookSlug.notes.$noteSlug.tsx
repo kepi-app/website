@@ -48,12 +48,12 @@ const Editor = memo(() => {
 	const saveNote = useDebounce(
 		useCallback(async () => {
 			const note = noteEditorStore.getState().note
-			const saveResult = await saveUpdatedNote(note)
-			if (saveResult.newSlug) {
-				changeNoteSlug(saveResult.newSlug)
+			const savedNote = await saveUpdatedNote(note)
+			if (savedNote.metadata.slug !== note.metadata.slug) {
+				changeNoteSlug(savedNote.metadata.slug)
 			}
-			if (saveResult.newNoteHandle) {
-				changeNoteHandle(saveResult.newNoteHandle)
+			if (savedNote.handle !== note.handle) {
+				changeNoteHandle(savedNote.handle)
 			}
 		}, [
 			noteEditorStore.getState,
@@ -97,9 +97,14 @@ const Editor = memo(() => {
 	useEffect(() => {
 		const unsub0 = noteEditorStore.subscribe((state) => state.title, saveNote)
 		const unsub1 = noteEditorStore.subscribe((state) => state.content, saveNote)
+		const unsub2 = noteEditorStore.subscribe(
+			(state) => state.note.metadata.path,
+			saveNote,
+		)
 		return () => {
 			unsub0()
 			unsub1()
+			unsub2()
 		}
 	}, [noteEditorStore.subscribe, saveNote])
 
@@ -115,7 +120,7 @@ const Editor = memo(() => {
 
 	return (
 		<div className="w-full px-16 flex justify-center">
-			<main className="w-full mt-40 max-w-prose">
+			<main className="w-full mt-24 max-w-prose">
 				<NoteEditor ref={editorRef} />
 				<MarkdownEditor.Toolbar containerClassName="fixed z-10 px-16 bottom-0 left-0 right-0 ">
 					<MarkdownEditor.Toolbar.AttachImageButton />

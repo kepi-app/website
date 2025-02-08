@@ -11,8 +11,9 @@ import {
 	type Note,
 	type Notebook,
 	type NotebookEntry,
-	type SaveNoteResult,
+	type NotebookSection,
 	createNote,
+	findNotebookSectionByPath,
 	loadFileInNotebook,
 	saveNote,
 	saveNotebookIndex,
@@ -21,9 +22,10 @@ import {
 interface NotebookState {
 	notebook: Notebook
 
+	addSection(path: string[]): void
 	createNewNote(): Promise<NotebookEntry>
 	saveNotebookIndex(): Promise<void>
-	saveUpdatedNote(note: Note): Promise<SaveNoteResult>
+	saveUpdatedNote(note: Note): Promise<Note>
 	loadFile(fileName: string): Promise<Blob | null>
 }
 type NotebookStore = ReturnType<typeof createNotebookStore>
@@ -38,11 +40,31 @@ function createNotebookStore(notebook: Notebook) {
 			immer((set, get) => ({
 				notebook,
 
+				addSection(path: string[]) {
+					set((state) => {
+						let current = state.notebook.index.root
+						for (const component of path) {
+							let section: NotebookSection
+							if (!(component in current.children)) {
+								section = {
+									title: component,
+									notes: [],
+									children: {},
+								}
+								current.children[component] = section
+							} else {
+								section = current.children[component]
+							}
+							current = section
+						}
+					})
+				},
+
 				async createNewNote() {
 					const notebook = get().notebook
 					const note = await createNote(notebook.handle, {
 						title: "",
-						path: "/",
+						path: [],
 					})
 					set((state) => {
 						state.notebook.index.entries[note.slug] = note
@@ -59,24 +81,68 @@ function createNotebookStore(notebook: Notebook) {
 
 				async saveUpdatedNote(note: Note) {
 					const notebook = get().notebook
-					const saveResult = await saveNote(note, notebook)
+					const savedNote = await saveNote(note, notebook)
 
-					if (saveResult.newSlug) {
-						const newSlug = saveResult.newSlug
+					const currentEntry = notebook.index.entries[note.metadata.slug]
+
+					const slugUpdated = savedNote.metadata.slug !== note.metadata.slug
+					const pathUpdated = currentEntry
+						? savedNote.metadata.path.length !== currentEntry.path.length ||
+							savedNote.metadata.path.some(
+								(component, i) => component !== currentEntry.path[i],
+							)
+						: true
+
+					if (slugUpdated || pathUpdated) {
 						set((state) => {
 							const newEntry: NotebookEntry = {
-								internalId: note.internalId,
-								path: note.metadata.category ?? "/",
-								title: note.metadata.title,
-								slug: newSlug,
+								internalId: savedNote.internalId,
+								path: savedNote.metadata.path,
+								title: savedNote.metadata.title,
+								slug: savedNote.metadata.slug,
 							}
+
 							delete state.notebook.index.entries[note.metadata.slug]
-							state.notebook.index.idMap[note.internalId] = newSlug
-							state.notebook.index.entries[newSlug] = newEntry
+							state.notebook.index.idMap[note.internalId] = newEntry.slug
+							state.notebook.index.entries[newEntry.slug] = newEntry
+
+							if (pathUpdated) {
+								// if path is updated, remove note from its previous section first
+								// then insert note to new section, creating new sections if necessary
+
+								if (currentEntry) {
+									const currentSection = findNotebookSectionByPath(
+										state.notebook.index,
+										currentEntry.path,
+									)
+									if (currentSection) {
+										const i = currentSection.notes.indexOf(savedNote.internalId)
+										currentSection.notes.splice(i, 1)
+									}
+								}
+
+								let current = state.notebook.index.root
+								for (const component of savedNote.metadata.path) {
+									let section: NotebookSection
+									if (component in current.children) {
+										section = current.children[component]
+									} else {
+										section = {
+											title: component,
+											notes: [],
+											children: {},
+										}
+										current.children[component] = section
+									}
+									current = section
+								}
+
+								current.notes.push(savedNote.internalId)
+							}
 						})
 					}
 
-					return saveResult
+					return savedNote
 				},
 
 				async loadFile(fileName: string): Promise<Blob | null> {

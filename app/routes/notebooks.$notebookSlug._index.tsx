@@ -19,7 +19,8 @@ const isAddingNoteAtom = atom(false)
 
 export default function NotebookIndexPage() {
 	const root = useNotebookStore((state) => state.notebook.index.root)
-	const hasNotes = root.notes.length > 0 || root.children.length > 0
+	const hasNotes =
+		root.notes.length > 0 || Object.keys(root.children).length > 0
 	return (
 		<div className="w-full flex items-center justify-center">
 			<main className="w-full max-w-prose mt-28">
@@ -103,8 +104,8 @@ function NoteList({
 }: { section: NotebookSection; indentation: number }) {
 	const index = useNotebookStore((state) => state.notebook.index)
 	return (
-		<ul style={{ marginLeft: 24 * indentation }}>
-			{section.children.map((childSection) => (
+		<ul className="ml-4">
+			{Object.values(section.children).map((childSection) => (
 				<li key={childSection.title}>
 					<details className="rounded group  group">
 						<summary className="px-2 py-1 rounded group-open:bg-zinc-800 cursor-default group-hover:bg-zinc-800">
