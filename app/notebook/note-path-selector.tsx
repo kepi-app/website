@@ -1,88 +1,134 @@
 import clsx from "clsx"
-import { Plus } from "lucide-react"
-import { Fragment, useMemo, useRef, useState } from "react"
+import { atom, useAtom } from "jotai"
+import { Check, X } from "lucide-react"
+import React, {
+	type KeyboardEvent,
+	memo,
+	type PropsWithChildren,
+	useCallback,
+	useMemo,
+	useRef,
+	useState,
+} from "react"
 import { useShallow } from "zustand/react/shallow"
 import { useClickOutsideDetector } from "~/hooks/use-click-outside-detector"
 import { useNoteEditorStore } from "~/notebook/note-store"
 import { useNotebookStore } from "~/notebook/notebook-store"
 import type { NotebookSection } from "~/vault/notebook"
 
-function SectionColumn({
-	items,
-	selectedSection,
-	onAddSection,
-	onSelect,
-}: {
-	items: string[]
-	selectedSection: string
-	onSelect: (section: string) => void
-	onAddSection: (section: string) => void
-}) {
-	const [isAddingSection, setIsAddingSection] = useState(false)
-	const inputRef = useRef<HTMLInputElement | null>(null)
+const selectedPathComponentAtom = atom(0)
+const isExpandedAtom = atom(false)
+const hideSectionBrowserAtom = atom(null, (_, set) => {
+	set(isExpandedAtom, false)
+})
 
-	function addNewSection() {
-		if (inputRef.current?.value) {
-			setIsAddingSection(false)
-			onAddSection(inputRef.current.value)
-		}
-	}
+function NotePathSelector() {
+	const containerRef = useRef<HTMLDivElement | null>(null)
+	const [, hideSectionBrowser] = useAtom(hideSectionBrowserAtom)
+
+	useClickOutsideDetector(containerRef, () => {
+		hideSectionBrowser()
+	})
 
 	return (
-		<ul className="py-2 px-2 border-r w-36 border-r-zinc-500 dark:border-r-zinc-700">
-			{items.map((title) => (
-				<li
-					key={title}
-					className={clsx(
-						"text-sm px-2 py-0.5 rounded flex flex-row items-center",
-						{
-							"bg-zinc-900 text-zinc-200 dark:bg-zinc-200 dark:text-zinc-900":
-								selectedSection === title,
-							"hover:bg-zinc-600": selectedSection !== title,
-						},
-					)}
-				>
-					<button
-						type="button"
-						className="w-full text-start"
-						onClick={() => onSelect(title)}
-					>
-						{title}
-					</button>
-				</li>
-			))}
-			{isAddingSection ? (
-				<input
-					ref={inputRef}
-					className="w-full px-2 py-0.5 bg-transparent text-sm"
-					onKeyDown={(event) => {
-						if (event.key === "Enter") {
-							addNewSection()
-						}
-					}}
-				/>
-			) : null}
-			<button
-				type="button"
-				className="opacity-80 text-sm text-nowrap w-full px-2 py-0.5 hover:bg-zinc-600 rounded flex flex-row items-center select-none"
-				onClick={() => {
-					setIsAddingSection(true)
-				}}
-			>
-				<span>Add section</span>
-				<Plus className="ml-2 h-3 w-3" />
-			</button>
+		<div
+			ref={containerRef}
+			className="flex flex-col rounded-lg -mx-6 transition-all"
+		>
+			<Path />
+			<SectionBrowserContainer>
+				<SectionBrowser />
+			</SectionBrowserContainer>
+		</div>
+	)
+}
+
+function Path() {
+	const path = useNoteEditorStore(
+		useShallow((state) => state.note.metadata.path),
+	)
+	return (
+		<ul
+			// biome-ignore lint/a11y/useSemanticElements: please shut the fuck up
+			role="tablist"
+			className="flex flex-row items-center space-x-0.5 transition-all px-4 pt-2 rounded-lg text-xs"
+		>
+			{path.length > 0 ? (
+				path.map((component, i) => (
+					<li key={component} className="after:content-['/']">
+						<PathComponentButton index={i} component={component} />
+					</li>
+				))
+			) : (
+				<span>/</span>
+			)}
+			<PathComponentButton index={path.length} component="Add section" />
 		</ul>
 	)
 }
 
-function SectionColumnView() {
+function PathComponentButton({
+	index,
+	component,
+}: { index: number; component: string }) {
+	const [selectedComponentIndex, setSelectedComponentIndex] = useAtom(
+		selectedPathComponentAtom,
+	)
+	const [isExpanded, setIsExpanded] = useAtom(isExpandedAtom)
+	const isSelected = isExpanded && selectedComponentIndex === index
+
+	return (
+		<button
+			role="tab"
+			aria-selected={isSelected}
+			aria-controls="section-browser"
+			type="button"
+			className={clsx(
+				"px-2 py-0.5 hover:bg-zinc-300 dark:hover:bg-zinc-800 transition-all ",
+				{
+					"rounded-t bg-zinc-300 dark:bg-zinc-800": isSelected,
+					"rounded opacity-80": !isSelected,
+				},
+			)}
+			onClick={() => {
+				if (isSelected) {
+					setIsExpanded(false)
+				} else {
+					setSelectedComponentIndex(index)
+					setIsExpanded(true)
+				}
+			}}
+		>
+			{component}
+		</button>
+	)
+}
+
+function SectionBrowserContainer({ children }: PropsWithChildren) {
+	const [isExpanded] = useAtom(isExpandedAtom)
+	return (
+		<div
+			className={clsx(
+				"grid transition-[grid-template-rows]",
+				isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+			)}
+		>
+			<div className="overflow-hidden">{children}</div>
+		</div>
+	)
+}
+
+function SectionBrowser() {
+	const [selectedComponentIndex, setSelectedComponentIndex] = useAtom(
+		selectedPathComponentAtom,
+	)
+	const changeNotePath = useNoteEditorStore((state) => state.changeNotePath)
+	const addSection = useNotebookStore((state) => state.addSection)
 	const path = useNoteEditorStore(
 		useShallow((state) => state.note.metadata.path),
 	)
 	const notebookIndex = useNotebookStore((state) => state.notebook.index)
-	const changeNotePath = useNoteEditorStore((state) => state.changeNotePath)
-	const addSection = useNotebookStore((state) => state.addSection)
+
 	const availableSections = useMemo(() => {
 		const pathLength = path.length
 		if (pathLength === 0) {
@@ -98,106 +144,171 @@ function SectionColumnView() {
 		return sections
 	}, [path, notebookIndex])
 
-	function onAddSection(section: string, index: number) {
-		const newPath = path.slice(0, index)
-		newPath.push(section)
+	function changePath(selectedSection: string) {
+		const newPath = path.slice(0, selectedComponentIndex)
+		newPath.push(selectedSection)
+		changeNotePath(newPath)
+		setSelectedComponentIndex(selectedComponentIndex + 1)
+	}
+
+	function addNewSection(newSectionName: string) {
+		const newPath = path.slice(0, selectedComponentIndex)
+		newPath.push(newSectionName)
 		addSection(newPath)
 	}
 
-	function onSelectSection(section: string, index: number) {
-		const newPath = path.slice(0, index)
-		newPath.push(section)
-		changeNotePath(newPath)
+	function deselectSection() {
+		changeNotePath(path.slice(0, selectedComponentIndex))
 	}
 
 	return (
-		<div className="flex flex-row overflow-auto">
-			{availableSections.map((items, i) => (
-				<SectionColumn
-					key={i}
-					selectedSection={path[i]}
-					items={items}
-					onSelect={(section) => {
-						onSelectSection(section, i)
-					}}
-					onAddSection={(section) => {
-						onAddSection(section, i)
-					}}
-				/>
-			))}
+		<div
+			id="section-browser"
+			className="px-2 py-2 bg-zinc-300 dark:bg-zinc-800 rounded"
+		>
+			<SectionList
+				sections={availableSections[selectedComponentIndex]}
+				selectedSection={
+					selectedComponentIndex >= path.length
+						? null
+						: path[selectedComponentIndex]
+				}
+				onSelectSection={changePath}
+				onDeselectSection={deselectSection}
+				onNewSection={addNewSection}
+			/>
 		</div>
 	)
 }
 
-function PathButton({
-	expanded,
-	onClick,
-}: { expanded: boolean; onClick: () => void }) {
-	const path = useNoteEditorStore(
-		useShallow((state) => state.note.metadata.path),
+function SectionList({
+	sections,
+	selectedSection,
+	onSelectSection,
+	onDeselectSection,
+	onNewSection,
+}: {
+	sections: string[]
+	selectedSection: string | null
+	onSelectSection: (section: string) => void
+	onDeselectSection: () => void
+	onNewSection: (newSectionName: string) => void
+}) {
+	return (
+		<div className="flex flex-col text-sm">
+			<ul>
+				{sections.map((section) => {
+					const isSelected = section === selectedSection
+					return (
+						<li key={section}>
+							<button
+								type="button"
+								className={clsx("w-full text-start px-2 py-0.5 rounded ", {
+									"bg-zinc-700 dark:bg-zinc-200 text-zinc-200 dark:text-zinc-700 hover:bg-zinc-600 hover:dark:bg-zinc-300":
+										isSelected,
+									"hover:bg-zinc-400 hover:bg-opacity-30 dark:hover:bg-opacity-100 dark:hover:bg-zinc-700":
+										!isSelected,
+								})}
+								onClick={() => {
+									if (isSelected) onDeselectSection()
+									else onSelectSection(section)
+								}}
+							>
+								{section}
+							</button>
+						</li>
+					)
+				})}
+			</ul>
+			<NewSectionButton onNewSection={onNewSection} />
+		</div>
 	)
+}
+
+const NewSectionInput = memo(
+	({
+		onOk,
+		onCancel,
+	}: { onOk: (newSectionName: string) => void; onCancel: () => void }) => {
+		const inputRef = useRef<HTMLInputElement | null>(null)
+
+		function submit() {
+			if (inputRef.current) {
+				onOk(inputRef.current.value)
+			}
+		}
+
+		function onInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+			if (event.key === "Enter") {
+				submit()
+			}
+		}
+
+		return (
+			<div className="flex flex-row items-center w-full bg-zinc-700 rounded">
+				<input
+					ref={inputRef}
+					// biome-ignore lint/a11y/noAutofocus: <explanation>
+					autoFocus
+					aria-label="New section name"
+					type="text"
+					className="bg-transparent px-2 py-0.5 flex-1"
+					onKeyDown={onInputKeyDown}
+				/>
+				<div className="flex flex-row px-2 space-x-2 items-center">
+					<button
+						type="button"
+						aria-label="Create section"
+						className="w-4 h-4 rounded-full bg-transparent"
+						onClick={submit}
+					>
+						<Check className="w-4 h-4" />
+					</button>
+					<button
+						type="button"
+						aria-label="Cancel creating section"
+						className="w-4 h-4 rounded-full bg-transparent"
+						onClick={onCancel}
+					>
+						<X className="w-4 h-4" />
+					</button>
+				</div>
+			</div>
+		)
+	},
+)
+
+function NewSectionButton({
+	onNewSection,
+}: { onNewSection: (newSectionName: string) => void }) {
+	const [isInputVisible, setIsInputVisible] = useState(false)
+
+	const cancelInput = useCallback(() => {
+		setIsInputVisible(false)
+	}, [])
+
+	const addSection = useCallback(
+		(newSectionName: string) => {
+			onNewSection(newSectionName)
+			setIsInputVisible(false)
+		},
+		[onNewSection],
+	)
+
+	if (isInputVisible) {
+		return <NewSectionInput onOk={addSection} onCancel={cancelInput} />
+	}
+
 	return (
 		<button
 			type="button"
-			className={clsx(
-				"flex flex-row space-x-2 items-center transition-all px-4 py-2 ",
-				expanded ? "text-sm" : "text-xs",
-			)}
+			className="w-full text-start px-2 py-0.5 rounded hover:bg-zinc-400 dark:hover:bg-zinc-700 opacity-50"
 			onClick={() => {
-				onClick()
+				setIsInputVisible(true)
 			}}
 		>
-			{path.length > 0 ? (
-				path.map((component) => (
-					<Fragment key={component}>
-						<span>{component}</span>
-						<span>/</span>
-					</Fragment>
-				))
-			) : (
-				<span>/</span>
-			)}
-			{expanded ? null : (
-				<span className="opacity-50 text-nowrap">Add section</span>
-			)}
+			New section
 		</button>
-	)
-}
-
-function NotePathSelector() {
-	const [isExpanded, setIsExpanded] = useState(false)
-	const containerRef = useRef<HTMLDivElement | null>(null)
-
-	useClickOutsideDetector(containerRef, () => {
-		setIsExpanded(false)
-	})
-
-	return (
-		<div
-			ref={containerRef}
-			className={clsx(
-				"flex flex-col rounded-lg -mx-4 transition-all hover:bg-zinc-800",
-				{ "bg-zinc-300 dark:bg-zinc-800": isExpanded },
-			)}
-		>
-			<PathButton
-				expanded={isExpanded}
-				onClick={() => {
-					setIsExpanded((expanded) => !expanded)
-				}}
-			/>
-			<div
-				className={clsx(
-					"grid transition-[grid-template-rows]",
-					isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
-				)}
-			>
-				<div className="overflow-hidden">
-					<hr className="border-zinc-500 dark:border-zinc-700" />
-					<SectionColumnView />
-				</div>
-			</div>
-		</div>
 	)
 }
 

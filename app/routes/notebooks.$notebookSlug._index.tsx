@@ -27,7 +27,7 @@ export default function NotebookIndexPage() {
 				<LogoHeader />
 				<PageHeader />
 				<input
-					className="bg-zinc-800 rounded border border-zinc-700 px-2 py-0.5 w-full mb-4"
+					className="bg-zinc-300 dark:bg-zinc-800 rounded border border-zinc-400 dark:border-zinc-700 px-2 py-0.5 w-full mb-4"
 					placeholder="Search..."
 				/>
 				{hasNotes ? (
@@ -108,7 +108,7 @@ function NoteList({
 			{Object.values(section.children).map((childSection) => (
 				<li key={childSection.title}>
 					<details className="rounded [&>summary>svg]:open:rotate-90">
-						<summary className="px-2 py-1 rounded cursor-default hover:bg-zinc-800">
+						<summary className="px-2 py-1 rounded cursor-default hover:bg-zinc-300 dark:hover:bg-zinc-800">
 							<ChevronRight className="inline w-4 h-4 -translate-x-[4px]" />{" "}
 							{childSection.title}
 						</summary>
@@ -119,7 +119,10 @@ function NoteList({
 			{section.notes.map((id) => {
 				const note = index.entries[index.idMap[id]]
 				return (
-					<li key={id} className="px-2 py-1 rounded hover:bg-zinc-800 group">
+					<li
+						key={id}
+						className="px-2 py-1 rounded hover:bg-zinc-300 dark:hover:bg-zinc-800 group"
+					>
 						<Anchor
 							to={`./notes/${note.slug}`}
 							className="block w-full no-underline group-hover:underline"
