@@ -8,7 +8,7 @@
 		"**/.client/**/*.tsx"
 	],
 	"compilerOptions": {
-		"lib": ["DOM", "DOM.AsyncIterable", "DOM.Iterable", "ES2022"],
+		"lib": ["DOM", "DOM.AsyncIterable", "DOM.Iterable", "WebWorker", "ES2022"],
 		"types": ["@react-router/node", "vite/client"],
 		"isolatedModules": true,
 		"esModuleInterop": true,

@@ -12,7 +12,7 @@ import {
 	type NoteSlug,
 	type Notebook,
 	type SaveFileResult,
-	saveFilesInNotebook,
+	addFilesToNotebook,
 } from "~/vault/notebook"
 
 interface NoteEditorSlice {
@@ -100,7 +100,7 @@ function createNoteEditorStore(note: Note) {
 			})),
 
 		addFiles: async (files, notebook) => {
-			return await saveFilesInNotebook(notebook, files)
+			return await addFilesToNotebook(notebook, files)
 		},
 	}))
 }

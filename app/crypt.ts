@@ -16,6 +16,11 @@ const AUTH_TAG_BYTE_LENGTH = 16
 const ARGON2_ITER_COUNT = 3
 const ARGON2_MEM_COST_KB = 65535
 
+type EncryptedFileMap = Record<string, string>
+
+const textEncoder = new TextEncoder()
+const textDecoder = new TextDecoder()
+
 class SymmetricKey {
 	static BYTE_LENGTH = 64
 
@@ -31,9 +36,7 @@ class SymmetricKey {
 	}
 
 	static async fromBase64(base64: string) {
-		await _sodium.ready
-		const sodium = _sodium
-		const bytes = sodium.from_base64(base64, _sodium.base64_variants.ORIGINAL)
+		const bytes = await bytesFromBase64(base64)
 		return new SymmetricKey(bytes)
 	}
 
@@ -49,16 +52,15 @@ class SymmetricKey {
 	}
 
 	toString() {
-		return _sodium.to_base64(this.fullKey, _sodium.base64_variants.ORIGINAL)
+		return _sodium.to_base64(this.fullKey, _sodium.base64_variants.URLSAFE)
 	}
 }
 
 interface CryptInfo {
+	masterKeySalt: Uint8Array
 	masterPasswordHash: Uint8Array
 	symmetricKey: SymmetricKey
-	protectedSymmetricKey: Uint8Array
-	iv: Uint8Array
-	authTag: Uint8Array
+	protectedSymmetricKey: RawCipher
 }
 
 interface HashResult {
@@ -96,7 +98,7 @@ function base64EncodedCipherFromJson(json: string): Base64EncodedCipher | null {
 }
 
 async function deriveInitialKeys(
-	email: string,
+	salt: string | null,
 	password: string,
 ): CheckedPromise<CryptInfo, InternalError> {
 	await _sodium.ready
@@ -104,7 +106,11 @@ async function deriveInitialKeys(
 
 	const textEncoder = new TextEncoder()
 
-	const masterKeySalt = textEncoder.encode(email)
+	const masterKeySalt = salt
+		? textEncoder.encode(salt)
+		: crypto.getRandomValues(
+				new Uint8Array(sodium.crypto_pwhash_argon2id_SALTBYTES),
+			)
 	const masterPasswordHashSalt = textEncoder.encode(password)
 
 	try {
@@ -148,7 +154,7 @@ async function deriveInitialKeys(
 		const symmetricKey = SymmetricKey.generate()
 		const iv = crypto.getRandomValues(new Uint8Array(IV_BYTE_LENGTH))
 
-		const { ciphertext: protectedSymmetricKey, mac: authTag } =
+		const { ciphertext, mac: authTag } =
 			sodium.crypto_aead_xchacha20poly1305_ietf_encrypt_detached(
 				symmetricKey.fullKey,
 				"",
@@ -159,11 +165,14 @@ async function deriveInitialKeys(
 			)
 
 		return {
+			masterKeySalt,
 			masterPasswordHash: masterPasswordHash.hash,
 			symmetricKey,
-			protectedSymmetricKey,
-			iv,
-			authTag,
+			protectedSymmetricKey: {
+				authTag,
+				iv,
+				text: ciphertext,
+			},
 		}
 	} catch (e) {
 		throw asInternalError(e)
@@ -203,11 +212,11 @@ async function hashMasterPassword(
 }
 
 async function deriveMasterKey(
-	email: string,
+	salt: string | Uint8Array,
 	password: string,
 ): CheckedPromise<Argon2BrowserHashResult, InternalError> {
-	const textEncoder = new TextEncoder()
-	const masterKeySalt = textEncoder.encode(email)
+	const masterKeySalt =
+		typeof salt === "string" ? new TextEncoder().encode(salt) : salt
 	return promiseOrThrow(
 		argon2.hash({
 			pass: password,
@@ -307,6 +316,17 @@ async function encryptToRaw(
 	return { text: box.ciphertext, authTag: box.mac, iv }
 }
 
+async function encryptToBase64String(
+	content: string | Uint8Array,
+	symmetricKey: SymmetricKey,
+): CheckedPromise<string, InternalError> {
+	await _sodium.ready
+	const sodium = _sodium
+	const rawCipher = await encryptToRaw(content, symmetricKey)
+	const bytes = uint8ArrayFromRawCipher(rawCipher)
+	return sodium.to_base64(bytes, sodium.base64_variants.ORIGINAL)
+}
+
 async function decrypt(
 	cipher: Base64EncodedCipher,
 	key: SymmetricKey,
@@ -314,15 +334,9 @@ async function decrypt(
 	await _sodium.ready
 	const sodium = _sodium
 
-	const authTagBytes = sodium.from_base64(
-		cipher.authTag,
-		sodium.base64_variants.ORIGINAL,
-	)
-	const ivBytes = sodium.from_base64(cipher.iv, sodium.base64_variants.ORIGINAL)
-	const cipherBytes = sodium.from_base64(
-		cipher.text,
-		sodium.base64_variants.ORIGINAL,
-	)
+	const authTagBytes = await bytesFromBase64(cipher.authTag)
+	const ivBytes = await bytesFromBase64(cipher.iv)
+	const cipherBytes = await bytesFromBase64(cipher.text)
 
 	return tryOrThrow(
 		() =>
@@ -364,6 +378,17 @@ function saveSymmetricKeyInSessionStorage(symmetricKey: SymmetricKey) {
 	sessionStorage.setItem("symmetricKey", symmetricKey.toString())
 }
 
+function rawCipherFromUint8Array(array: Uint8Array): RawCipher {
+	return {
+		authTag: array.subarray(0, AUTH_TAG_BYTE_LENGTH),
+		iv: array.subarray(
+			AUTH_TAG_BYTE_LENGTH,
+			AUTH_TAG_BYTE_LENGTH + IV_BYTE_LENGTH,
+		),
+		text: array.subarray(AUTH_TAG_BYTE_LENGTH + IV_BYTE_LENGTH),
+	}
+}
+
 function rawCipherFromArrayBuffer(buf: ArrayBuffer): RawCipher {
 	return {
 		authTag: new Uint8Array(buf.slice(0, AUTH_TAG_BYTE_LENGTH)),
@@ -374,10 +399,18 @@ function rawCipherFromArrayBuffer(buf: ArrayBuffer): RawCipher {
 	}
 }
 
-async function rawCipherFromBase64(base64: string): Promise<RawCipher> {
-	await _sodium.ready
-	const sodium = _sodium
-	const bytes = sodium.from_base64(base64, sodium.base64_variants.ORIGINAL)
+function uint8ArrayFromRawCipher(cipher: RawCipher): Uint8Array {
+	const array = new Uint8Array(
+		cipher.authTag.length + cipher.iv.length + cipher.text.length,
+	)
+	array.set(cipher.authTag, 0)
+	array.set(cipher.iv, AUTH_TAG_BYTE_LENGTH)
+	array.set(cipher.text, AUTH_TAG_BYTE_LENGTH + IV_BYTE_LENGTH)
+	return array
+}
+
+async function rawCipherFromBase64String(base64: string): Promise<RawCipher> {
+	const bytes = await bytesFromBase64(base64)
 	return {
 		authTag: bytes.subarray(0, AUTH_TAG_BYTE_LENGTH),
 		iv: bytes.subarray(
@@ -386,6 +419,46 @@ async function rawCipherFromBase64(base64: string): Promise<RawCipher> {
 		),
 		text: bytes.subarray(AUTH_TAG_BYTE_LENGTH + IV_BYTE_LENGTH),
 	}
+}
+
+async function rawCipherFromBase64Cipher(
+	cipher: Base64EncodedCipher,
+): Promise<RawCipher> {
+	return {
+		text: await bytesFromBase64(cipher.text),
+		authTag: await bytesFromBase64(cipher.authTag),
+		iv: await bytesFromBase64(cipher.iv),
+	}
+}
+
+async function base64FromRawCipher(
+	cipher: RawCipher,
+): Promise<Base64EncodedCipher> {
+	return {
+		text: await base64StringFromBytes(cipher.text),
+		authTag: await base64StringFromBytes(cipher.authTag),
+		iv: await base64StringFromBytes(cipher.iv),
+	}
+}
+
+async function bytesFromBase64(base64: string): Promise<Uint8Array> {
+	await _sodium.ready
+	const sodium = _sodium
+	return sodium.from_base64(base64, sodium.base64_variants.URLSAFE)
+}
+
+async function base64StringFromBytes(bytes: Uint8Array) {
+	await _sodium.ready
+	const sodium = _sodium
+	return sodium.to_base64(bytes, sodium.base64_variants.URLSAFE)
+}
+
+function bytesFromString(s: string): Uint8Array {
+	return textEncoder.encode(s)
+}
+
+function stringFromBytes(bytes: Uint8Array): string {
+	return textDecoder.decode(bytes)
 }
 
 export {
@@ -399,10 +472,25 @@ export {
 	hashMasterPassword,
 	deriveStretchedMasterKey,
 	encryptToRaw,
+	encryptToBase64String,
 	encryptFile,
 	decrypt,
 	decryptRaw,
 	rawCipherFromArrayBuffer,
-	rawCipherFromBase64,
+	uint8ArrayFromRawCipher,
+	rawCipherFromBase64String,
+	rawCipherFromBase64Cipher,
+	rawCipherFromUint8Array,
+	base64FromRawCipher,
+	base64StringFromBytes,
+	bytesFromBase64,
+	bytesFromString,
+	stringFromBytes,
 }
-export type { CryptInfo, Base64EncodedCipher, HashResult }
+export type {
+	CryptInfo,
+	RawCipher,
+	Base64EncodedCipher,
+	HashResult,
+	EncryptedFileMap,
+}

@@ -7,11 +7,16 @@ import {
 import { createStore, useStore } from "zustand"
 import { subscribeWithSelector } from "zustand/middleware"
 import { immer } from "zustand/middleware/immer"
+import { type ApplicationError, isApplicationError } from "~/errors"
 import {
+	NOTEBOOK_RESERVED_NAME,
 	type Note,
 	type Notebook,
 	type NotebookEntry,
+	type NotebookFile,
+	type NotebookFileName,
 	type NotebookSection,
+	addFilesToNotebook,
 	createNote,
 	findNotebookSectionByPath,
 	loadFileInNotebook,
@@ -26,7 +31,8 @@ interface NotebookState {
 	createNewNote(): Promise<NotebookEntry>
 	saveNotebookIndex(): Promise<void>
 	saveUpdatedNote(note: Note): Promise<Note>
-	loadFile(fileName: string): Promise<Blob | null>
+	loadFile(fileName: NotebookFileName): Promise<Blob | null>
+	addFiles(files: File[]): Promise<(NotebookFile | ApplicationError)[]>
 }
 type NotebookStore = ReturnType<typeof createNotebookStore>
 
@@ -62,11 +68,15 @@ function createNotebookStore(notebook: Notebook) {
 
 				async createNewNote() {
 					const notebook = get().notebook
-					const note = await createNote(notebook.handle, {
+					const note = await createNote(notebook, {
 						title: "",
 						path: [],
+						key: notebook.key,
 					})
 					set((state) => {
+						if (state.notebook.encryptedFileMap) {
+							state.notebook.encryptedFileMap[note.slug] = note.fileName
+						}
 						state.notebook.index.entries[note.slug] = note
 						state.notebook.index.idMap[note.internalId] = note.slug
 						state.notebook.index.root.notes.push(note.internalId)
@@ -76,16 +86,28 @@ function createNotebookStore(notebook: Notebook) {
 
 				async saveNotebookIndex() {
 					const notebook = get().notebook
-					await saveNotebookIndex(notebook)
+					const { fileName } = await saveNotebookIndex(notebook, {
+						key: notebook.key,
+					})
+					set((state) => {
+						if (state.notebook.encryptedFileMap) {
+							state.notebook.encryptedFileMap[NOTEBOOK_RESERVED_NAME.index] =
+								fileName
+						}
+					})
 				},
 
 				async saveUpdatedNote(note: Note) {
 					const notebook = get().notebook
-					const savedNote = await saveNote(note, notebook)
+					const savedNote = await saveNote(note, notebook, {
+						key: notebook.key,
+					})
 
 					const currentEntry = notebook.index.entries[note.metadata.slug]
 
-					const slugUpdated = savedNote.metadata.slug !== note.metadata.slug
+					const handleUpdated = !(await savedNote.handle.isSameEntry(
+						note.handle,
+					))
 					const pathUpdated = currentEntry
 						? savedNote.metadata.path.length !== currentEntry.path.length ||
 							savedNote.metadata.path.some(
@@ -93,18 +115,23 @@ function createNotebookStore(notebook: Notebook) {
 							)
 						: true
 
-					if (slugUpdated || pathUpdated) {
+					if (handleUpdated || pathUpdated) {
 						set((state) => {
 							const newEntry: NotebookEntry = {
 								internalId: savedNote.internalId,
 								path: savedNote.metadata.path,
 								title: savedNote.metadata.title,
 								slug: savedNote.metadata.slug,
+								fileName: savedNote.handle.name,
 							}
 
 							delete state.notebook.index.entries[note.metadata.slug]
 							state.notebook.index.idMap[note.internalId] = newEntry.slug
 							state.notebook.index.entries[newEntry.slug] = newEntry
+							if (state.notebook.encryptedFileMap) {
+								state.notebook.encryptedFileMap[newEntry.slug as string] =
+									savedNote.handle.name
+							}
 
 							if (pathUpdated) {
 								// if path is updated, remove note from its previous section first
@@ -145,9 +172,32 @@ function createNotebookStore(notebook: Notebook) {
 					return savedNote
 				},
 
-				async loadFile(fileName: string): Promise<Blob | null> {
+				async loadFile(fileName: NotebookFileName): Promise<Blob | null> {
 					const notebook = get().notebook
-					return loadFileInNotebook(notebook, fileName)
+					return loadFileInNotebook(notebook, fileName, {
+						key: notebook.key,
+					})
+				},
+
+				async addFiles(
+					files: File[],
+				): Promise<(NotebookFile | ApplicationError)[]> {
+					const notebook = get().notebook
+					const results = await addFilesToNotebook(notebook, files)
+
+					set((state) => {
+						if (state.notebook.encryptedFileMap) {
+							for (let i = 0; i < results.length; ++i) {
+								const result = results[i]
+								if (!isApplicationError(result)) {
+									state.notebook.encryptedFileMap[result.notebookFileName] =
+										result.actualFileName
+								}
+							}
+						}
+					})
+
+					return results
 				},
 			})),
 		),

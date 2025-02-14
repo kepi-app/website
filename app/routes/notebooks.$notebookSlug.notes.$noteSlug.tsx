@@ -34,15 +34,14 @@ type RouteParams = {
 
 const Editor = memo(() => {
 	const noteEditorStore = useNoteEditorStoreContext()
-	const notebookStore = useNotebookStoreContext()
 	const saveUpdatedNote = useNotebookStore((state) => state.saveUpdatedNote)
 	const changeNoteHandle = useNoteEditorStore((state) => state.changeNoteHandle)
 	const changeNoteSlug = useNoteEditorStore((state) => state.changeNoteSlug)
-	const addFiles = useNoteEditorStore((state) => state.addFiles)
+	const addFilesToNotebook = useNotebookStore((state) => state.addFiles)
 	const clearPendingFiles = useNoteEditorStore(
 		(state) => state.clearPendingFiles,
 	)
-	const insertFiles = useNoteEditorStore((state) => state.insertFiles)
+	const insertFilesToEditor = useNoteEditorStore((state) => state.insertFiles)
 	const editorRef = useRef<MarkdownEditorRef | null>(null)
 
 	const saveNote = useDebounce(
@@ -67,20 +66,22 @@ const Editor = memo(() => {
 	const savePendingFiles = useCallback(
 		async (pendingFiles: File[]) => {
 			if (pendingFiles.length > 0 && editorRef.current) {
-				const notebook = notebookStore.getState().notebook
-				const results = await addFiles(pendingFiles, notebook)
+				const results = await addFilesToNotebook(pendingFiles)
 
 				const uploadedFiles: string[] = []
 				const errors: ApplicationError[] = []
-				for (const result of results) {
+				const len = results.length
+
+				for (let i = 0; i < len; ++i) {
+					const result = results[i]
 					if (isApplicationError(result)) {
 						errors.push(result)
 					} else {
-						uploadedFiles.push(result.fileName)
+						uploadedFiles.push(result.notebookFileName)
 					}
 				}
 
-				insertFiles(uploadedFiles, editorRef.current.selectionEnd)
+				insertFilesToEditor(uploadedFiles, editorRef.current.selectionEnd)
 				if (errors.length > 0) {
 					displayInternalErrorToast(
 						new AggregateError(errors),
@@ -91,7 +92,7 @@ const Editor = memo(() => {
 				clearPendingFiles()
 			}
 		},
-		[notebookStore.getState, addFiles, insertFiles, clearPendingFiles],
+		[addFilesToNotebook, insertFilesToEditor, clearPendingFiles],
 	)
 
 	useEffect(() => {
@@ -154,7 +155,9 @@ const NoteEditorPage = memo(() => {
 				}
 
 				const notebook = notebookStore.getState().notebook
-				const note = await findNote(notebook, params.noteSlug)
+				const note = await findNote(notebook, params.noteSlug, {
+					key: notebook.key,
+				})
 				if (note) {
 					setValue(note)
 				} else {

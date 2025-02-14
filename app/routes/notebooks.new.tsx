@@ -100,6 +100,9 @@ export async function clientAction({ request }: Route.ClientLoaderArgs) {
 		await createNotebook({
 			name: notebookName,
 			description: null,
+			key: null,
+			protectedSymmetricKey: null,
+			masterKeySalt: null,
 		})
 		return redirect("/notebooks")
 	} catch (error) {

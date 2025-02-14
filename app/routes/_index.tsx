@@ -22,11 +22,11 @@ export default function Index() {
 					</span>
 				</h1>
 				<h2 className="text-2xl mt-4 dark:text-zinc-400">
-					effortless blogging.
+					effortless note-taking.
 				</h2>
 				<p className="mt-20 text-xl">
-					Kepi is an open-source, self-hostable blogging platform. here, only
-					your thoughts matter, and nothing else.
+					Kepi is a self-hostable, local-first notebook app. here, only your
+					thoughts matter, and nothing else.
 				</p>
 				<br />
 				<p className="mb-20 text-xl">

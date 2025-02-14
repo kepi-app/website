@@ -10,7 +10,11 @@ import { authenticate, redirectToLoginPage } from "~/auth"
 import type { Blog } from "~/blog/blog"
 import type { NonEmptyBlogPost } from "~/blog/post"
 import { Button } from "~/components/button"
-import { type SymmetricKey, decryptRaw, rawCipherFromBase64 } from "~/crypt"
+import {
+	type SymmetricKey,
+	decryptRaw,
+	rawCipherFromBase64String,
+} from "~/crypt"
 import {
 	type CheckedPromise,
 	ERROR_TYPE,
@@ -86,7 +90,7 @@ export default function PublishOverviewPage() {
 		key: SymmetricKey,
 		decoder: TextDecoder,
 	): CheckedPromise<{ slug: string; content: string }, InternalError> {
-		return decryptRaw(await rawCipherFromBase64(post.content), key).then(
+		return decryptRaw(await rawCipherFromBase64String(post.content), key).then(
 			(decrypted) => ({
 				slug: post.slug,
 				content: decoder.decode(decrypted),
@@ -102,7 +106,7 @@ export default function PublishOverviewPage() {
 
 		try {
 			const [homeContent, decryptedPosts, decryptedFiles] = await Promise.all([
-				decryptRaw(await rawCipherFromBase64(blog.homeContent), key).then(
+				decryptRaw(await rawCipherFromBase64String(blog.homeContent), key).then(
 					(decrypted) => decoder.decode(decrypted),
 				),
 				Promise.all(

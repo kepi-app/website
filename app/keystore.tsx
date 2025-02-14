@@ -23,6 +23,7 @@ import {
 import { Button } from "./components/button"
 import {
 	type Base64EncodedCipher,
+	type RawCipher,
 	SymmetricKey,
 	base64EncodedCipherFromJson,
 	decrypt,
@@ -44,7 +45,14 @@ const KeyStoreContext = React.createContext<KeyStore>(
 	null as unknown as KeyStore,
 )
 
-function KeyStoreProvider({ children }: PropsWithChildren) {
+interface KeyStoreProviderProps {
+	protectedSymmetricKey: RawCipher
+	masterKeySalt: Uint8Array
+}
+
+function KeyStoreProvider({
+	children,
+}: PropsWithChildren<KeyStoreProviderProps>) {
 	const [isPasswordInputVisible, setIsPasswordInputVisible] = useState(false)
 	const email = useRef<string | null>(null)
 	const protectedSymmetricKey = useRef<Base64EncodedCipher | null>(null)

@@ -1,29 +1,70 @@
 import yaml from "js-yaml"
 import { ulid } from "ulid"
 import {
+	type Base64EncodedCipher,
+	type RawCipher,
+	SymmetricKey,
+	base64StringFromBytes,
+	bytesFromBase64,
+	rawCipherFromBase64Cipher,
+} from "~/crypt"
+import {
 	type ApplicationError,
 	type CheckedPromise,
 	ERROR_TYPE,
 	applicationError,
 	asInternalError,
+	isApplicationError,
 	promiseOr,
-	promiseOrThrow,
+	rethrowAsInternalError,
 	tryOr,
 } from "~/errors"
-import { fileExists } from "~/opfs-util"
+import {
+	decryptFileName,
+	fileExists,
+	readFile,
+	readJsonFile,
+	readTextFile,
+	removeFile,
+	writeFile,
+} from "~/file-system/file-system.client"
 import { slugify } from "~/slugify"
 import type { Tagged } from "~/tagged"
 import { VAULT_RESERVED_NAME } from "~/vault/vault"
 
 type NotebookHandle = Tagged<FileSystemDirectoryHandle, "NotebookHandle">
+type NotebookFileName = Tagged<string, "NotebookFileName">
 type NoteHandle = Tagged<FileSystemFileHandle, "Note">
 type NoteSlug = Tagged<string, "NoteSlug">
 type InternalNoteId = Tagged<string, "NoteId">
+type EncryptedFileMap = Record<string, string>
+
+const ENCRYPTION_STATUS = {
+	none: "NONE",
+	encrypted: "ENCRYPTED",
+	decrypted: "DECRYPTED",
+} as const
 
 interface Notebook {
+	encryptionStatus:
+		| (typeof ENCRYPTION_STATUS)["none"]
+		| (typeof ENCRYPTION_STATUS)["decrypted"]
 	metadata: NotebookMetadata
 	index: NotebookIndex
 	handle: NotebookHandle
+	handlePath: string
+	key: SymmetricKey | null
+	encryptedFileMap: EncryptedFileMap | null
+	protectedSymmetricKey: RawCipher | null
+	masterKeySalt: Uint8Array | null
+}
+
+interface EncryptedNotebook {
+	encryptionStatus: (typeof ENCRYPTION_STATUS)["encrypted"]
+	handle: NotebookHandle
+	handlePath: string
+	protectedSymmetricKey: RawCipher
+	masterKeySalt: Uint8Array
 }
 
 interface NotebookMetadata {
@@ -36,6 +77,7 @@ interface NotebookEntry {
 	internalId: InternalNoteId
 	title: string
 	slug: NoteSlug
+	fileName: string
 	path: string[]
 }
 
@@ -64,13 +106,27 @@ interface NoteMetadata {
 	path: string[]
 }
 
-interface SaveNoteResult {
-	newNoteHandle: NoteHandle | null
-	newSlug: NoteSlug | null
-}
-
 interface SaveFileResult {
 	fileName: string
+}
+
+interface KeyFile {
+	notebookName: string
+	protectedSymmetricKey: Base64EncodedCipher
+	masterKeySalt: string
+}
+
+interface CreateNotebookOptions {
+	name: string
+	description: string | null
+	key: SymmetricKey | null
+	protectedSymmetricKey: Base64EncodedCipher | null
+	masterKeySalt: Uint8Array | null
+}
+
+interface NotebookFile {
+	notebookFileName: NotebookFileName
+	actualFileName: string
 }
 
 const FRONTMATTER_FENCE_REGEX = /^---[\s\S]*\n---\n*/g
@@ -82,6 +138,7 @@ const FRONTMATTER_CONTENT_REGEX = /(?<=^---\n)[\s\S]*(?=\n---)/
 const NOTEBOOK_RESERVED_NAME = {
 	metadata: "metadata.json",
 	index: "index.json",
+	key: "key.json",
 	files: "files",
 } as const
 
@@ -100,41 +157,145 @@ async function findAllNotebooks(): CheckedPromise<
 
 	const ps: Promise<NotebookMetadata>[] = []
 	for await (const [_, handle] of notebooksDir) {
-		if (handle.kind === "directory") {
-			ps.push(readNotebookMetadata(handle as NotebookHandle))
+		if (handle instanceof FileSystemDirectoryHandle) {
+			if (await fileExists(handle, NOTEBOOK_RESERVED_NAME.key)) {
+				ps.push(
+					readJsonFile<KeyFile>(handle, NOTEBOOK_RESERVED_NAME.key, {
+						key: null,
+					}).then((keyFile) => ({
+						name: keyFile.notebookName,
+						description: "Notebook locked",
+						slug: handle.name,
+					})),
+				)
+			} else {
+				ps.push(
+					readJsonFile(handle, NOTEBOOK_RESERVED_NAME.metadata, { key: null }),
+				)
+			}
 		}
 	}
 
-	return promiseOrThrow(Promise.all(ps), asInternalError)
+	return Promise.all(ps).catch(rethrowAsInternalError)
 }
 
 async function findNotebook(
 	slug: string,
-): CheckedPromise<Notebook | null, ApplicationError> {
-	try {
-		const handle = (await notebooksDirectory().then((dir) =>
-			dir.getDirectoryHandle(slug),
-		)) as NotebookHandle
-		const [metadata, index] = await Promise.all([
-			readNotebookMetadata(handle),
-			readNotebookIndex(handle),
-		])
-		return { metadata, index, handle }
-	} catch (error) {
-		if (error instanceof DOMException && error.name === "NotFoundException") {
+): CheckedPromise<Notebook | EncryptedNotebook | null, ApplicationError> {
+	const handle = (await promiseOr(
+		notebooksDirectory().then((dir) => dir.getDirectoryHandle(slug)),
+		(error) => {
+			if (error instanceof DOMException && error.name === "NotFoundError") {
+				return null
+			}
+			throw asInternalError(error)
+		},
+	)) as NotebookHandle | null
+	if (!handle) {
+		return null
+	}
+
+	const handlePath = `${VAULT_RESERVED_NAME.notebooks}/${slug}/`
+
+	const keyFile = await readJsonFile<KeyFile>(
+		handle,
+		NOTEBOOK_RESERVED_NAME.key,
+		{ key: null },
+	).catch((error) => {
+		if (isApplicationError(error, ERROR_TYPE.notFound)) {
 			return null
 		}
-		throw asInternalError(error)
+		throw error
+	})
+
+	if (keyFile) {
+		return {
+			handle,
+			handlePath,
+			encryptionStatus: ENCRYPTION_STATUS.encrypted,
+			protectedSymmetricKey: await rawCipherFromBase64Cipher(
+				keyFile.protectedSymmetricKey,
+			),
+			masterKeySalt: await bytesFromBase64(keyFile.masterKeySalt),
+		}
+	}
+
+	const [metadata, index] = await Promise.all([
+		readJsonFile<NotebookMetadata>(handle, NOTEBOOK_RESERVED_NAME.metadata, {
+			key: null,
+		}),
+		readNotebookIndex(handle, NOTEBOOK_RESERVED_NAME.index, { key: null }),
+	])
+
+	return {
+		encryptionStatus: ENCRYPTION_STATUS.none,
+		metadata,
+		index,
+		handle,
+		handlePath,
+		encryptedFileMap: null,
+		protectedSymmetricKey: null,
+		masterKeySalt: null,
+		key: null,
+	}
+}
+
+async function decryptNotebook(
+	notebook: EncryptedNotebook,
+	key: SymmetricKey,
+): CheckedPromise<Notebook, ApplicationError> {
+	const fileMap: EncryptedFileMap = {}
+	notebook.handle.keys()
+
+	const ps: Promise<void>[] = []
+	const textDecoder = new TextDecoder()
+
+	for await (const encryptedFileName of notebook.handle.keys()) {
+		if (
+			encryptedFileName === NOTEBOOK_RESERVED_NAME.key ||
+			encryptedFileName === NOTEBOOK_RESERVED_NAME.files
+		) {
+			continue
+		}
+		ps.push(
+			decryptFileName(notebook.handle, encryptedFileName, key)
+				.then((decrypted) => textDecoder.decode(decrypted))
+				.then((fileName) => {
+					fileMap[fileName] = encryptedFileName
+				}),
+		)
+	}
+
+	await Promise.all(ps)
+
+	const [metadata, index] = await Promise.all([
+		readJsonFile<NotebookMetadata>(
+			notebook.handle,
+			fileMap[NOTEBOOK_RESERVED_NAME.metadata],
+			{ key },
+		),
+		readNotebookIndex(notebook.handle, fileMap[NOTEBOOK_RESERVED_NAME.index], {
+			key,
+		}),
+	])
+
+	return {
+		...notebook,
+		encryptionStatus: ENCRYPTION_STATUS.decrypted,
+		encryptedFileMap: fileMap,
+		key,
+		metadata,
+		index,
 	}
 }
 
 async function createNotebook({
 	name,
 	description = null,
-}: { name: string; description: string | null }): CheckedPromise<
-	NotebookMetadata,
-	ApplicationError
-> {
+	key,
+	protectedSymmetricKey,
+	masterKeySalt,
+}: CreateNotebookOptions): CheckedPromise<NotebookMetadata, ApplicationError> {
 	const slug = slugify(name)
 	const notebooksDir = await notebooksDirectory()
 
@@ -143,7 +304,7 @@ async function createNotebook({
 	} catch (error) {
 		if (error instanceof DOMException && error.name === "NotFoundError") {
 			const metadata: NotebookMetadata = { name, slug, description }
-			const directory: NotebookIndex = {
+			const index: NotebookIndex = {
 				entries: {},
 				idMap: {},
 				root: {
@@ -153,32 +314,40 @@ async function createNotebook({
 				},
 			}
 
-			const notebookDir = notebooksDir.getDirectoryHandle(slug, {
-				create: true,
-			})
+			const basePath = `${VAULT_RESERVED_NAME.notebooks}/${slug}`
 
 			await Promise.all([
-				notebookDir
-					.then((handle) =>
-						handle.getFileHandle(NOTEBOOK_RESERVED_NAME.metadata, {
-							create: true,
-						}),
+				(async function writeMetadataFile() {
+					await writeFile(
+						`${basePath}/${NOTEBOOK_RESERVED_NAME.metadata}`,
+						JSON.stringify(metadata),
+						{
+							key,
+						},
 					)
-					.then((handle) => handle.createWritable())
-					.then((file) =>
-						file.write(JSON.stringify(metadata)).then(() => file.close()),
-					),
-
-				notebookDir
-					.then((handle) =>
-						handle.getFileHandle(NOTEBOOK_RESERVED_NAME.index, {
-							create: true,
-						}),
+				})(),
+				(async function writeIndexFile() {
+					await writeFile(
+						`${basePath}/${NOTEBOOK_RESERVED_NAME.index}`,
+						JSON.stringify(index),
+						{
+							key,
+						},
 					)
-					.then((handle) => handle.createWritable())
-					.then((file) =>
-						file.write(JSON.stringify(directory)).then(() => file.close()),
-					),
+				})(),
+				protectedSymmetricKey && masterKeySalt
+					? base64StringFromBytes(masterKeySalt).then((it) =>
+							writeFile(
+								`${basePath}/${NOTEBOOK_RESERVED_NAME.key}`,
+								JSON.stringify({
+									notebookName: metadata.name,
+									protectedSymmetricKey,
+									masterKeySalt: it,
+								}),
+								{ key: null },
+							),
+						)
+					: Promise.resolve(),
 			])
 
 			return metadata
@@ -199,8 +368,8 @@ function normalizeNotePath(pathString: string | null | undefined): string[] {
 }
 
 async function createNote(
-	notebookHandle: NotebookHandle,
-	{ title, path }: { title: string; path: string[] },
+	notebook: Notebook,
+	{ title, key }: { title: string; path: string[]; key: SymmetricKey | null },
 ): CheckedPromise<NotebookEntry, ApplicationError> {
 	const internalId = ulid() as InternalNoteId
 	const slug = title ? slugify(title) : internalId
@@ -208,131 +377,92 @@ async function createNote(
 		title,
 		path: [],
 		slug: slug as NoteSlug,
+		fileName: slug,
 		internalId,
 	}
 
-	try {
-		await notebookHandle.getFileHandle(entry.slug)
-	} catch (error) {
-		if (!(error instanceof DOMException && error.name === "NotFoundError")) {
-			throw asInternalError(error)
-		}
+	if (
+		(await fileExists(notebook.handle, entry.slug)) ||
+		(notebook.encryptedFileMap && slug in notebook.encryptedFileMap)
+	) {
+		throw applicationError({
+			error: ERROR_TYPE.conflict,
+			conflictingField: "title",
+			conflictingValue: title,
+		})
+	}
 
-		const fileHandle = await promiseOrThrow(
-			notebookHandle.getFileHandle(entry.slug, {
-				create: true,
-			}),
-			asInternalError,
-		)
-
-		const content = `---
+	const content = `---
 title: ${entry.title || '""'}
 slug: ${entry.slug}
 ---
 `
 
-		const f = await fileHandle.createWritable()
-		await f.write(content)
-		await f.close()
+	const { fileName } = await writeFile(
+		`${VAULT_RESERVED_NAME.notebooks}/${notebook.metadata.slug}/${entry.slug}`,
+		content,
+		{
+			key,
+		},
+	).catch(rethrowAsInternalError)
+	entry.fileName = fileName
 
-		return entry
-	}
-
-	throw applicationError({
-		error: ERROR_TYPE.conflict,
-		conflictingField: "title",
-		conflictingValue: title,
-	})
+	return entry
 }
 
 async function findNote(
 	notebook: Notebook,
 	slug: string,
+	{ key }: { key: SymmetricKey | null },
 ): CheckedPromise<Note | null, ApplicationError> {
 	if (!(slug in notebook.index.entries)) {
 		return null
 	}
 
 	const entry = notebook.index.entries[slug as NoteSlug]
-	const handle = (await promiseOr(
-		notebook.handle.getFileHandle(slug),
-		(error) => {
-			if (error instanceof DOMException && error.name === "NotFoundError") {
-				return null
-			}
-			throw asInternalError(error)
-		},
-	)) as NoteHandle | null
-	if (!handle) {
+
+	const result = await readTextFile(notebook.handle, entry.fileName, {
+		key,
+	}).catch((error) => {
+		if (isApplicationError(error, ERROR_TYPE.notFound)) {
+			return null
+		}
+		throw error
+	})
+	if (!result) {
 		return null
 	}
 
-	const content = await promiseOrThrow(
-		handle.getFile().then((f) => f.text()),
-		asInternalError,
-	)
-
-	const metadata = parseNoteFrontmatter(content)
+	const metadata = parseNoteFrontmatter(result.content)
 
 	return {
-		handle,
+		handle: result.handle as NoteHandle,
 		metadata,
-		content: content.replace(FRONTMATTER_FENCE_REGEX, ""),
+		content: result.content.replace(FRONTMATTER_FENCE_REGEX, ""),
 		internalId: entry.internalId,
 	}
 }
 
-async function saveNote(note: Note, notebook: Notebook): Promise<Note> {
+async function saveNote(
+	note: Note,
+	notebook: Notebook,
+	{ key }: { key: SymmetricKey | null },
+): Promise<Note> {
 	const entry = notebook.index.entries[note.metadata.slug]
 	if (!entry) {
 		throw applicationError({ error: ERROR_TYPE.notFound })
 	}
 
-	let handle: NoteHandle
-	let newSlug: string | null = null
-	let prevHandle: FileSystemFileHandle | null = null
-
+	let noteSlug: NoteSlug
 	if (note.metadata.title) {
-		// if the note has a title
-		// check if the title has changed, then change the file name accordingly.
-		// create a new file first, then remove old file
-		const slug = slugify(note.metadata.title)
-		if (slug !== note.handle.name) {
-			if (await fileExists(notebook.handle, slug)) {
-				throw applicationError({
-					error: ERROR_TYPE.conflict,
-					conflictingField: "note.metadata.title",
-					conflictingValue: note.metadata.title,
-				})
-			}
-			newSlug = slug
-			handle = (await notebook.handle.getFileHandle(slug, {
-				create: true,
-			})) as NoteHandle
-			prevHandle = note.handle
-		} else {
-			// title has not changed, file doesn't need to be renamed
-			handle = note.handle
-		}
+		noteSlug = slugify(note.metadata.title) as NoteSlug
 	} else {
-		// if the note does not have a title
-		// use its internal id as file name, but first we check if that's the case already
-		if (entry.internalId !== note.handle.name) {
-			handle = (await notebook.handle.getFileHandle(entry.internalId, {
-				create: true,
-			})) as NoteHandle
-			prevHandle = note.handle
-			newSlug = entry.internalId
-		} else {
-			handle = note.handle
-		}
+		noteSlug = entry.internalId as string as NoteSlug
 	}
 
 	const metadata: NoteMetadata = {
 		...note.metadata,
-	}
-	if (newSlug) {
-		metadata.slug = newSlug as NoteSlug
+		slug: noteSlug,
 	}
 	const newContent = `---
 ${yaml.dump({
@@ -342,61 +472,67 @@ ${yaml.dump({
 ---
 ${note.content}`
 
-	const writable = await handle.createWritable()
-	await writable.write(newContent)
-	await writable.close()
+	const { fileName } = await writeFile(
+		`${notebook.handlePath}${noteSlug}`,
+		newContent,
+		{ key },
+	)
 
-	if (prevHandle) {
-		await notebook.handle.removeEntry(prevHandle.name)
+	let newHandle: NoteHandle | null = null
+	if (note.handle.name !== fileName) {
+		await notebook.handle.removeEntry(note.handle.name)
+		newHandle = (await notebook.handle.getFileHandle(fileName)) as NoteHandle
 	}
 
 	return {
 		...note,
-		handle,
+		handle: newHandle || note.handle,
 		metadata,
 	}
 }
 
-async function saveFilesInNotebook(
+async function addFilesToNotebook(
 	notebook: Notebook,
 	files: File[],
-): Promise<(SaveFileResult | ApplicationError)[]> {
+): Promise<(NotebookFile | ApplicationError)[]> {
 	const fileDir = await notebook.handle.getDirectoryHandle(
 		NOTEBOOK_RESERVED_NAME.files,
 		{ create: true },
 	)
 
 	return Promise.allSettled(
-		files.map((file) => saveFileInDir(fileDir, file)),
+		files.map((file) =>
+			writeFile(
+				`${notebook.handlePath}${fileDir.name}/${file.name}`,
+				file.stream(),
+				{ key: notebook.key },
+			),
+		),
 	).then((results) =>
-		results.map((result) =>
+		results.map((result, i) =>
 			result.status === "fulfilled"
-				? result.value
+				? ({
+						notebookFileName: files[i].name as NotebookFileName,
+						actualFileName: result.value.fileName,
+					} satisfies NotebookFile)
 				: asInternalError(result.reason),
 		),
 	)
 }
 
-async function saveFileInDir(
-	dir: FileSystemDirectoryHandle,
-	file: File,
-): Promise<SaveFileResult> {
-	const handle = await dir.getFileHandle(file.name, { create: true })
-	const writable = await handle.createWritable()
-	await file.stream().pipeTo(writable)
-	return { fileName: file.name }
-}
-
 async function loadFileInNotebook(
 	notebook: Notebook,
-	fileName: string,
+	fileName: NotebookFileName,
+	{ key }: { key: SymmetricKey | null },
 ): CheckedPromise<Blob | null, ApplicationError> {
 	try {
 		const fileDir = await notebook.handle.getDirectoryHandle(
 			NOTEBOOK_RESERVED_NAME.files,
 		)
-		const handle = await fileDir.getFileHandle(fileName)
-		return await handle.getFile()
+		const name = notebook.encryptedFileMap
+			? notebook.encryptedFileMap[fileName]
+			: fileName
+		return await readFile(fileDir, name, { key })
 	} catch (error) {
 		if (error instanceof DOMException && error.name === "NotFoundError") {
 			return null
@@ -405,25 +541,14 @@ async function loadFileInNotebook(
 	}
 }
 
-async function readNotebookMetadata(
-	handle: NotebookHandle,
-): Promise<NotebookMetadata> {
-	const jsonStr = await handle
-		.getFileHandle(NOTEBOOK_RESERVED_NAME.metadata)
-		.then((it) => it.getFile())
-		.then((f) => f.text())
-	return JSON.parse(jsonStr)
-}
-
 async function readNotebookIndex(
 	handle: NotebookHandle,
+	indexFileName: string,
+	{ key }: { key: SymmetricKey | null },
 ): CheckedPromise<NotebookIndex, ApplicationError> {
 	try {
-		const json = await handle
-			.getFileHandle(NOTEBOOK_RESERVED_NAME.index)
-			.then((it) => it.getFile())
-			.then((f) => f.text())
-			.then((it) => JSON.parse(it))
+		// biome-ignore lint/suspicious/noExplicitAny: <explanation>
+		const json = await readJsonFile<any>(handle, indexFileName, { key })
 		const index: NotebookIndex = { ...json, entries: {} }
 		for (const [slug, value] of Object.entries(json.entries)) {
 			// biome-ignore lint/suspicious/noExplicitAny: <explanation>
@@ -439,13 +564,8 @@ async function readNotebookIndex(
 
 async function saveNotebookIndex(
 	notebook: Notebook,
-): CheckedPromise<void, ApplicationError> {
-	const writable = await promiseOrThrow(
-		notebook.handle
-			.getFileHandle(NOTEBOOK_RESERVED_NAME.index)
-			.then((h) => h.createWritable()),
-		asInternalError,
-	)
+	{ key }: { key: SymmetricKey | null },
+): CheckedPromise<SaveFileResult, ApplicationError> {
 	// biome-ignore lint/suspicious/noExplicitAny: <explanation>
 	const json: any = { ...notebook.index, entries: {} }
 	for (const [key, value] of Object.entries(notebook.index.entries)) {
@@ -454,8 +574,21 @@ async function saveNotebookIndex(
 			path: value.path.join("/"),
 		}
 	}
-	await writable.write(JSON.stringify(json))
-	await writable.close()
+
+	const result = await writeFile(
+		`${notebook.handlePath}${NOTEBOOK_RESERVED_NAME.index}`,
+		JSON.stringify(json),
+		{ key },
+	)
+
+	if (notebook.encryptedFileMap) {
+		await removeFile(
+			notebook.handle,
+			notebook.encryptedFileMap[NOTEBOOK_RESERVED_NAME.index],
+		)
+	}
+
+	return result
 }
 
 function findNotebookSectionByPath(
@@ -496,11 +629,25 @@ function isValidNotebookName(name: string) {
 	return !/[ `!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/.test(name)
 }
 
+function cacheNotebookKey(notebook: EncryptedNotebook, key: SymmetricKey) {
+	sessionStorage.setItem(`${notebook.handle.name}KeyBase64`, key.toString())
+}
+
+async function retrieveCachedNotebookKey(notebook: EncryptedNotebook) {
+	const keyBase64 = sessionStorage.getItem(`${notebook.handle.name}KeyBase64`)
+	if (keyBase64) {
+		return await SymmetricKey.fromBase64(keyBase64)
+	}
+	return null
+}
+
 export {
 	FRONTMATTER_FENCE_REGEX,
 	FRONTMATTER_CONTENT_REGEX,
+	ENCRYPTION_STATUS,
+	NOTEBOOK_RESERVED_NAME,
 	findNotebook,
-	readNotebookIndex,
+	decryptNotebook,
 	saveNotebookIndex,
 	findNotebookSectionByPath,
 	findAllNotebooks,
@@ -509,19 +656,24 @@ export {
 	createNote,
 	findNote,
 	saveNote,
-	saveFilesInNotebook,
+	addFilesToNotebook,
 	loadFileInNotebook,
+	cacheNotebookKey,
+	retrieveCachedNotebookKey,
 }
 export type {
 	NotebookMetadata,
+	NotebookFileName,
 	NotebookHandle,
+	NotebookFile,
 	NoteSlug,
 	Notebook,
+	EncryptedNotebook,
 	NotebookIndex,
 	NotebookSection,
 	Note,
 	NoteHandle,
 	NotebookEntry,
-	SaveNoteResult,
 	SaveFileResult,
+	CreateNotebookOptions,
 }

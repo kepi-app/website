@@ -3,7 +3,7 @@ import {
 	type SymmetricKey,
 	decryptRaw,
 	rawCipherFromArrayBuffer,
-	rawCipherFromBase64,
+	rawCipherFromBase64String,
 } from "~/crypt"
 import {
 	type ApplicationError,
@@ -54,7 +54,7 @@ async function downloadAndDecryptBlogFile(
 	const content = await promiseOrThrow(res.arrayBuffer(), asInternalError)
 
 	const mimeType = await promiseOrThrow(
-		decryptRaw(await rawCipherFromBase64(contentTypeCipher), key),
+		decryptRaw(await rawCipherFromBase64String(contentTypeCipher), key),
 		(e) => applicationError({ error: ERROR_TYPE.decryptionFailed, cause: e }),
 	)
 

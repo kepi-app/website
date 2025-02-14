@@ -95,12 +95,12 @@ function isApplicationError<T extends ErrorType>(
 	)
 }
 
-function promiseOrThrow<T, TErr extends ApplicationError>(
+async function promiseOrThrow<T, TErr extends ApplicationError>(
 	promise: T | Promise<T>,
 	mapException?: (error: unknown) => TErr,
-): T | CheckedPromise<T, TErr> {
+): CheckedPromise<T, TErr> {
 	try {
-		return promise
+		return await promise
 	} catch (e) {
 		if (mapException) {
 			throw mapException(e)
@@ -147,6 +147,13 @@ function tryOr<T, TFallback>(
 
 function throws(ex: unknown): never {
 	throw ex
+}
+
+function rethrowAsInternalError(error: unknown): never {
+	throw applicationError({
+		error: ERROR_TYPE.internal,
+		cause: error,
+	})
 }
 
 function asInternalError(error: unknown): InternalError {
@@ -201,6 +208,7 @@ export {
 	applicationError,
 	applicationHttpError,
 	asInternalError,
+	rethrowAsInternalError,
 	isApplicationError,
 	useRouteApplicationError,
 }

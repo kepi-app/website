@@ -3,7 +3,11 @@ import { useNavigate } from "react-router"
 import { type StateCreator, create, useStore } from "zustand"
 import { subscribeWithSelector } from "zustand/middleware"
 import type { UploadResult } from "~/blog/upload"
-import { type SymmetricKey, decryptRaw, rawCipherFromBase64 } from "~/crypt"
+import {
+	type SymmetricKey,
+	decryptRaw,
+	rawCipherFromBase64String,
+} from "~/crypt"
 import { useKeyStore } from "~/keystore"
 
 enum MarkdownEditorStatus {
@@ -59,7 +63,7 @@ const _stateCreator: StateCreator<
 		}
 
 		try {
-			const contentCipher = await rawCipherFromBase64(content)
+			const contentCipher = await rawCipherFromBase64String(content)
 			const decrypted = await decryptRaw(contentCipher, key)
 			const decoder = new TextDecoder()
 			const decryptedContent = decoder.decode(decrypted)
